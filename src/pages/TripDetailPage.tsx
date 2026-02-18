@@ -9,9 +9,10 @@ import {
 import { EXPENSE_CATEGORY_LABELS, ExpenseCategory, Fueling } from "@/types";
 import {
   ArrowLeft, Plus, Fuel, MapPin, Receipt, Gauge, DollarSign, TrendingUp,
-  TrendingDown, Trash2, CheckCircle, Pencil,
+  TrendingDown, Trash2, CheckCircle, Pencil, FileDown,
 } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
+import { exportSingleTripPdf } from "@/lib/exportPdf";
 
 type Tab = "freights" | "fuel" | "expenses";
 
@@ -49,6 +50,10 @@ const TripDetailPage = () => {
           </div>
           {isOpen && (
             <div className="flex gap-1.5">
+              <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}
+                className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
+                <FileDown className="w-4 h-4 text-profit" />
+              </button>
               <button onClick={() => { finishTrip(trip.id); navigate("/"); }}
                 className="p-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors">
                 <CheckCircle className="w-4 h-4 text-profit" />
@@ -58,6 +63,12 @@ const TripDetailPage = () => {
                 <Trash2 className="w-4 h-4 text-expense" />
               </button>
             </div>
+          )}
+          {!isOpen && (
+            <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}
+              className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
+              <FileDown className="w-4 h-4 text-profit" />
+            </button>
           )}
         </div>
       </header>

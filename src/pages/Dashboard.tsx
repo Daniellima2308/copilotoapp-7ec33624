@@ -6,8 +6,9 @@ import { TripHistoryList } from "@/components/TripHistoryList";
 import { PeriodFilter } from "@/components/PeriodFilter";
 import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, getTripNetRevenue } from "@/lib/calculations";
 import { Trip } from "@/types";
-import { Plus, Truck, Trash2 } from "lucide-react";
+import { Plus, Truck, Trash2, FileDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { exportMultipleTripsPdf } from "@/lib/exportPdf";
 
 function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
   if (period === "all") return trips;
@@ -111,14 +112,27 @@ const Dashboard = () => {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
               Histórico
             </h2>
-            {finishedTrips.length > 0 && (
-              <button
-                onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}
-                className="flex items-center gap-1 text-xs text-expense hover:text-expense/80 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Limpar
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {filteredTrips.length > 0 && (
+                <button
+                  onClick={() => {
+                    const periodLabels: Record<string, string> = { all: "Todos", today: "Hoje", week: "Semana", month: "Mês", year: "Ano" };
+                    exportMultipleTripsPdf(filteredTrips, data.vehicles, periodLabels[period] || period);
+                  }}
+                  className="flex items-center gap-1 text-xs text-profit hover:text-profit/80 transition-colors"
+                >
+                  <FileDown className="w-3.5 h-3.5" /> Exportar PDF
+                </button>
+              )}
+              {finishedTrips.length > 0 && (
+                <button
+                  onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}
+                  className="flex items-center gap-1 text-xs text-expense hover:text-expense/80 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Limpar
+                </button>
+              )}
+            </div>
           </div>
           <TripHistoryList trips={finishedTrips} />
         </section>

@@ -6,7 +6,7 @@ import { TripHistoryList } from "@/components/TripHistoryList";
 import { PeriodFilter } from "@/components/PeriodFilter";
 import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, getTripNetRevenue } from "@/lib/calculations";
 import { Trip } from "@/types";
-import { Plus, Truck, Route } from "lucide-react";
+import { Plus, Truck, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
@@ -31,7 +31,7 @@ function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
 }
 
 const Dashboard = () => {
-  const { data, getActiveTrip, addTrip } = useApp();
+  const { data, getActiveTrip, addTrip, clearHistory } = useApp();
   const [period, setPeriod] = useState("month");
   const navigate = useNavigate();
 
@@ -107,9 +107,19 @@ const Dashboard = () => {
 
         {/* History */}
         <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-            Histórico
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+              Histórico
+            </h2>
+            {finishedTrips.length > 0 && (
+              <button
+                onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}
+                className="flex items-center gap-1 text-xs text-expense hover:text-expense/80 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Limpar
+              </button>
+            )}
+          </div>
           <TripHistoryList trips={finishedTrips} />
         </section>
       </div>

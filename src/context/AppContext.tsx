@@ -17,10 +17,12 @@ interface AppContextType {
   deleteFreight: (tripId: string, freightId: string) => void;
   // Fuelings
   addFueling: (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => void;
+  updateFueling: (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => void;
   deleteFueling: (tripId: string, fuelingId: string) => void;
   // Expenses
   addExpense: (tripId: string, e: Omit<Expense, "id" | "tripId">) => void;
   deleteExpense: (tripId: string, expenseId: string) => void;
+  clearHistory: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -136,6 +138,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [updateData]);
 
+  const updateFueling = useCallback((tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
+    const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+
+    updateData((d) => {
+      const trip = d.trips.find((t) => t.id === tripId);
+      if (!trip) return d;
+
+      const fuelingIndex = trip.fuelings.findIndex((fu) => fu.id === fuelingId);
+      if (fuelingIndex === -1) return d;
+
+      let average = 0;
+      if (fuelingIndex === 0) {
+        const firstFreight = trip.freights[0];
+        if (firstFreight && f.liters > 0) {
+          average = (f.kmCurrent - firstFreight.kmInitial) / f.liters;
+        }
+      } else {
+        const prevFueling = trip.fuelings[fuelingIndex - 1];
+        if (f.liters > 0) {
+          average = (f.kmCurrent - prevFueling.kmCurrent) / f.liters;
+        }
+      }
+
+      const updated: Fueling = {
+        ...f,
+        id: fuelingId,
+        tripId,
+        pricePerLiter: Math.round(pricePerLiter * 100) / 100,
+        average: Math.round(average * 100) / 100,
+      };
+
+      return {
+        ...d,
+        trips: d.trips.map((t) =>
+          t.id === tripId
+            ? { ...t, fuelings: t.fuelings.map((fu) => (fu.id === fuelingId ? updated : fu)) }
+            : t
+        ),
+      };
+    });
+  }, [updateData]);
+
   const deleteFueling = useCallback((tripId: string, fuelingId: string) => {
     updateTrip(tripId, (t) => ({
       ...t,
@@ -157,6 +201,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   }, [updateTrip]);
 
+  const clearHistory = useCallback(() => {
+    updateData((d) => ({
+      ...d,
+      trips: d.trips.filter((t) => t.status === "open"),
+    }));
+  }, [updateData]);
+
   return (
     <AppContext.Provider
       value={{
@@ -170,9 +221,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addFreight,
         deleteFreight,
         addFueling,
+        updateFueling,
         deleteFueling,
         addExpense,
         deleteExpense,
+        clearHistory,
       }}
     >
       {children}

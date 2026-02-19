@@ -67,12 +67,6 @@ const Dashboard = () => {
             <h1 className="text-2xl font-black tracking-tight">Estrada Real</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Gestão de Fretes</p>
           </div>
-          <button
-            onClick={() => navigate("/vehicles")}
-            className="p-2.5 rounded-lg bg-secondary hover:bg-accent transition-colors"
-          >
-            <Truck className="w-5 h-5 text-secondary-foreground" />
-          </button>
         </div>
       </header>
 

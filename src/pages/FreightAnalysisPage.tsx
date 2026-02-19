@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { getRouteDistance } from "@/lib/routeApi";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, CheckCircle, TrendingUp, Calculator, Route } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
@@ -83,6 +84,7 @@ const FreightAnalysisPage = () => {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [distanceKm, setDistanceKm] = useState<number>(0);
+  const [loadingRoute, setLoadingRoute] = useState(false);
   const [offeredValue, setOfferedValue] = useState<number>(0);
   const [commissionPercent, setCommissionPercent] = useState<number>(17);
   const [dieselPrice, setDieselPrice] = useState<number>(6.29);
@@ -90,6 +92,22 @@ const FreightAnalysisPage = () => {
   const [cargoType, setCargoType] = useState("geral");
   const [axles, setAxles] = useState<number>(3);
   const [tollCost, setTollCost] = useState<number>(0);
+  const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-calculate distance when both cities are selected (contain " - ")
+  const calcRoute = useCallback(async (o: string, d: string) => {
+    if (!o.includes(" - ") || !d.includes(" - ")) return;
+    setLoadingRoute(true);
+    const km = await getRouteDistance(o, d);
+    if (km) setDistanceKm(km);
+    setLoadingRoute(false);
+  }, []);
+
+  useEffect(() => {
+    if (routeTimerRef.current) clearTimeout(routeTimerRef.current);
+    routeTimerRef.current = setTimeout(() => calcRoute(origin, destination), 600);
+    return () => { if (routeTimerRef.current) clearTimeout(routeTimerRef.current); };
+  }, [origin, destination, calcRoute]);
 
   // Calculations
   const results = useMemo(() => {
@@ -136,17 +154,19 @@ const FreightAnalysisPage = () => {
               <CityAutocomplete value={destination} onChange={setDestination} placeholder="Destino" className="input-field" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Distância (KM)</label>
+              <label className="text-xs text-muted-foreground">
+                Distância (KM) {loadingRoute && <span className="text-primary animate-pulse ml-1">calculando rota...</span>}
+              </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   inputMode="numeric"
                   value={distanceKm || ""}
                   onChange={(e) => setDistanceKm(Number(e.target.value))}
-                  placeholder="Informe a distância em KM"
+                  placeholder="Automático ou manual"
                   className="input-field"
                 />
-                <Route className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Route className={`w-4 h-4 shrink-0 ${loadingRoute ? "text-primary animate-spin" : "text-muted-foreground"}`} />
               </div>
             </div>
           </CardContent>

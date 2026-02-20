@@ -39,6 +39,22 @@ const CARGO_TYPES = [
 
 const AXLE_OPTIONS = [2, 3, 4, 5, 6, 7, 9];
 
+// Média estimada de pedágio por km por eixo (R$/km) — dados aproximados rodovias BR
+const TOLL_PER_KM_PER_AXLE: Record<number, number> = {
+  2: 0.12,
+  3: 0.18,
+  4: 0.24,
+  5: 0.30,
+  6: 0.36,
+  7: 0.42,
+  9: 0.54,
+};
+
+function estimateToll(distanceKm: number, axles: number): number {
+  const rate = TOLL_PER_KM_PER_AXLE[axles] ?? TOLL_PER_KM_PER_AXLE[3];
+  return Math.round(distanceKm * rate * 100) / 100;
+}
+
 function calcAnttFloor(distanceKm: number, axles: number, cargoType: string): number {
   const coef = ANTT_COEF_PER_KM[axles] ?? ANTT_COEF_PER_KM[3];
   const mult = CARGO_MULTIPLIERS[cargoType] ?? 1.0;
@@ -101,6 +117,7 @@ const FreightAnalysisPage = () => {
   const [cargoType, setCargoType] = useState("geral");
   const [axles, setAxles] = useState<number>(3);
   const [tollCost, setTollCost] = useState<number>(0);
+  const [tollManuallyEdited, setTollManuallyEdited] = useState(false);
   const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-calculate distance when both cities are selected (contain " - ")
@@ -117,6 +134,13 @@ const FreightAnalysisPage = () => {
     routeTimerRef.current = setTimeout(() => calcRoute(origin, destination), 600);
     return () => { if (routeTimerRef.current) clearTimeout(routeTimerRef.current); };
   }, [origin, destination, calcRoute]);
+
+  // Auto-estimate toll when distance or axles change (unless manually edited)
+  useEffect(() => {
+    if (!tollManuallyEdited && distanceKm > 0) {
+      setTollCost(estimateToll(distanceKm, axles));
+    }
+  }, [distanceKm, axles, tollManuallyEdited]);
 
   // Calculations
   const results = useMemo(() => {
@@ -213,16 +237,36 @@ const FreightAnalysisPage = () => {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Pedágio Estimado (R$)</label>
+                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  Pedágio (R$)
+                  {!tollManuallyEdited && distanceKm > 0 && (
+                    <span className="text-[10px] text-primary font-medium">(estimado)</span>
+                  )}
+                </label>
                 <input
                   type="number"
                   inputMode="decimal"
                   step="0.01"
                   value={tollCost || ""}
-                  onChange={(e) => setTollCost(Number(e.target.value))}
+                  onChange={(e) => {
+                    setTollManuallyEdited(true);
+                    setTollCost(Number(e.target.value));
+                  }}
                   placeholder="0,00"
                   className="input-field"
                 />
+                {tollManuallyEdited && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTollManuallyEdited(false);
+                      if (distanceKm > 0) setTollCost(estimateToll(distanceKm, axles));
+                    }}
+                    className="text-[10px] text-primary underline mt-0.5"
+                  >
+                    Voltar ao estimado
+                  </button>
+                )}
               </div>
             </div>
           </CardContent>

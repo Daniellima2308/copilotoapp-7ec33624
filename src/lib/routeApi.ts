@@ -6,6 +6,12 @@ interface Coordinates {
   lon: number;
 }
 
+export interface RouteResult {
+  distanceKm: number;
+  originCoords: Coordinates;
+  destCoords: Coordinates;
+}
+
 async function geocodeCity(cityName: string): Promise<Coordinates | null> {
   try {
     const query = `${cityName}, Brazil`;
@@ -22,6 +28,11 @@ async function geocodeCity(cityName: string): Promise<Coordinates | null> {
 }
 
 export async function getRouteDistance(origin: string, destination: string): Promise<number | null> {
+  const result = await getRouteInfo(origin, destination);
+  return result ? result.distanceKm : null;
+}
+
+export async function getRouteInfo(origin: string, destination: string): Promise<RouteResult | null> {
   try {
     const [originCoords, destCoords] = await Promise.all([
       geocodeCity(origin),
@@ -37,8 +48,11 @@ export async function getRouteDistance(origin: string, destination: string): Pro
 
     if (data.code !== "Ok" || !data.routes?.length) return null;
 
-    // distance is in meters, convert to km
-    return Math.round(data.routes[0].distance / 1000);
+    return {
+      distanceKm: Math.round(data.routes[0].distance / 1000),
+      originCoords,
+      destCoords,
+    };
   } catch {
     return null;
   }

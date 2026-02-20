@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { getRouteDistance } from "@/lib/routeApi";
+import { getRouteInfo } from "@/lib/routeApi";
+import { calculateToll } from "@/lib/tollApi";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, CheckCircle, TrendingUp, Calculator, Route } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
@@ -118,14 +119,25 @@ const FreightAnalysisPage = () => {
   const [axles, setAxles] = useState<number>(3);
   const [tollCost, setTollCost] = useState<number>(0);
   const [tollManuallyEdited, setTollManuallyEdited] = useState(false);
+  const [loadingToll, setLoadingToll] = useState(false);
+  const [tollSource, setTollSource] = useState<"api" | "estimate" | "manual">("estimate");
   const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coordsRef = useRef<{ originLat: number; originLng: number; destLat: number; destLng: number } | null>(null);
 
   // Auto-calculate distance when both cities are selected (contain " - ")
   const calcRoute = useCallback(async (o: string, d: string) => {
     if (!o.includes(" - ") || !d.includes(" - ")) return;
     setLoadingRoute(true);
-    const km = await getRouteDistance(o, d);
-    if (km) setDistanceKm(km);
+    const result = await getRouteInfo(o, d);
+    if (result) {
+      setDistanceKm(result.distanceKm);
+      coordsRef.current = {
+        originLat: result.originCoords.lat,
+        originLng: result.originCoords.lon,
+        destLat: result.destCoords.lat,
+        destLng: result.destCoords.lon,
+      };
+    }
     setLoadingRoute(false);
   }, []);
 
@@ -135,11 +147,36 @@ const FreightAnalysisPage = () => {
     return () => { if (routeTimerRef.current) clearTimeout(routeTimerRef.current); };
   }, [origin, destination, calcRoute]);
 
-  // Auto-estimate toll when distance or axles change (unless manually edited)
+  // Auto-fetch toll via TollGuru when route + axles change (unless manually edited)
   useEffect(() => {
-    if (!tollManuallyEdited && distanceKm > 0) {
-      setTollCost(estimateToll(distanceKm, axles));
-    }
+    if (tollManuallyEdited) return;
+    if (!coordsRef.current || distanceKm <= 0) return;
+
+    const coords = coordsRef.current;
+    let cancelled = false;
+
+    const fetchToll = async () => {
+      setLoadingToll(true);
+      const apiToll = await calculateToll(
+        coords.originLat, coords.originLng,
+        coords.destLat, coords.destLng,
+        axles
+      );
+      if (cancelled) return;
+
+      if (apiToll !== null && apiToll > 0) {
+        setTollCost(apiToll);
+        setTollSource("api");
+      } else {
+        // Fallback to estimate
+        setTollCost(estimateToll(distanceKm, axles));
+        setTollSource("estimate");
+      }
+      setLoadingToll(false);
+    };
+
+    fetchToll();
+    return () => { cancelled = true; };
   }, [distanceKm, axles, tollManuallyEdited]);
 
   // Calculations
@@ -239,8 +276,11 @@ const FreightAnalysisPage = () => {
               <div>
                 <label className="text-xs text-muted-foreground flex items-center gap-1.5">
                   Pedágio (R$)
-                  {!tollManuallyEdited && distanceKm > 0 && (
-                    <span className="text-[10px] text-primary font-medium">(estimado)</span>
+                  {loadingToll && <span className="text-[10px] text-primary font-medium animate-pulse">consultando...</span>}
+                  {!loadingToll && !tollManuallyEdited && distanceKm > 0 && (
+                    <span className="text-[10px] text-primary font-medium">
+                      ({tollSource === "api" ? "TollGuru" : "estimado"})
+                    </span>
                   )}
                 </label>
                 <input
@@ -260,11 +300,12 @@ const FreightAnalysisPage = () => {
                     type="button"
                     onClick={() => {
                       setTollManuallyEdited(false);
-                      if (distanceKm > 0) setTollCost(estimateToll(distanceKm, axles));
+                      setTollSource("estimate");
+                      // Will re-trigger the useEffect to fetch from API
                     }}
                     className="text-[10px] text-primary underline mt-0.5"
                   >
-                    Voltar ao estimado
+                    Recalcular automático
                   </button>
                 )}
               </div>

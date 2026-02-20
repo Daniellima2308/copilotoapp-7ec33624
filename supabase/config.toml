@@ -1,0 +1,2 @@
+[functions.calculate-toll]
+verify_jwt = false

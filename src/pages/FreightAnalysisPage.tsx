@@ -45,12 +45,14 @@ function calcAnttFloor(distanceKm: number, axles: number, cargoType: string): nu
   return distanceKm * coef * mult;
 }
 
-type FreightQuality = "bad" | "good" | "great";
+type FreightQuality = "bad" | "medium" | "good" | "great";
 
 function getFreightQuality(offeredValue: number, anttFloor: number, netProfit: number): FreightQuality {
-  if (offeredValue < anttFloor || netProfit <= 0) return "bad";
-  if (offeredValue <= anttFloor * 1.1) return "good";
-  return "great";
+  const margin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : -100;
+  if (netProfit < 0 || margin < 5) return "bad";
+  if (margin >= 25 || offeredValue >= anttFloor) return "great";
+  if (margin >= 15) return "good";
+  return "medium";
 }
 
 const QUALITY_CONFIG: Record<FreightQuality, { bg: string; border: string; icon: typeof AlertTriangle; label: string; desc: string }> = {
@@ -59,21 +61,28 @@ const QUALITY_CONFIG: Record<FreightQuality, { bg: string; border: string; icon:
     border: "border-destructive/30",
     icon: AlertTriangle,
     label: "FRETE RUIM",
-    desc: "Abaixo da Tabela ANTT",
+    desc: "Risco de Prejuízo",
   },
-  good: {
+  medium: {
     bg: "bg-warning/15",
     border: "border-warning/30",
+    icon: Gauge,
+    label: "FRETE MÉDIO",
+    desc: "Cobre Custos (Retorno)",
+  },
+  good: {
+    bg: "bg-info/15",
+    border: "border-info/30",
     icon: CheckCircle,
     label: "FRETE BOM",
-    desc: "Dentro da Média",
+    desc: "Margem Segura",
   },
   great: {
     bg: "bg-profit/15",
     border: "border-profit/30",
     icon: TrendingUp,
     label: "FRETE QUALIFICADO",
-    desc: "Alta Rentabilidade",
+    desc: "Excelente Rentabilidade",
   },
 };
 
@@ -120,8 +129,9 @@ const FreightAnalysisPage = () => {
     const anttFloor = calcAnttFloor(distanceKm, axles, cargoType);
     const quality = getFreightQuality(offeredValue, anttFloor, netProfit);
     const profitPerKm = distanceKm > 0 ? netProfit / distanceKm : 0;
+    const profitMargin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : 0;
 
-    return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm };
+    return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm, profitMargin };
   }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost]);
 
   return (
@@ -197,7 +207,7 @@ const FreightAnalysisPage = () => {
                   type="number"
                   inputMode="decimal"
                   step="0.5"
-                  value={commissionPercent}
+                  value={commissionPercent || ""}
                   onChange={(e) => setCommissionPercent(Number(e.target.value))}
                   className="input-field"
                 />
@@ -231,7 +241,7 @@ const FreightAnalysisPage = () => {
                   type="number"
                   inputMode="decimal"
                   step="0.01"
-                  value={dieselPrice}
+                  value={dieselPrice || ""}
                   onChange={(e) => setDieselPrice(Number(e.target.value))}
                   className="input-field"
                 />
@@ -242,7 +252,7 @@ const FreightAnalysisPage = () => {
                   type="number"
                   inputMode="decimal"
                   step="0.1"
-                  value={avgKmPerLiter}
+                  value={avgKmPerLiter || ""}
                   onChange={(e) => setAvgKmPerLiter(Number(e.target.value))}
                   className="input-field"
                 />
@@ -280,6 +290,7 @@ const FreightAnalysisPage = () => {
                   <div>
                     <p className="font-black text-lg tracking-tight">{cfg.label}</p>
                     <p className="text-xs text-muted-foreground">{cfg.desc}</p>
+                    <p className="text-xs font-semibold mt-0.5">Margem: {results.profitMargin.toFixed(1)}%</p>
                   </div>
                 </div>
               );

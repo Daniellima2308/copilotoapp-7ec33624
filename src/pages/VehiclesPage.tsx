@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
 const MODELS_BY_BRAND: Record<string, string[]> = {
-  "Mercedes-Benz": ["1113", "1513", "1620", "1634", "1935", "1938", "Atego 2426", "Atego 2430", "Atron 1635", "Axor 2544", "Axor 2546", "Actros 2546", "Actros 2651"],
+  "Mercedes-Benz": ["1113", "1513", "1620", "1634", "1935", "1938", "Atego 2425", "Atego 2426", "Atego 2430", "Atron 1635", "Axor 2544", "Axor 2546", "Actros 2546", "Actros 2651"],
   "Scania": ["112", "113", "124", "G380", "G420", "P310", "P360", "R440", "R450", "R500", "R540"],
   "Volvo": ["EDC", "NL12", "VM 270", "VM 330", "FH12 380", "FH 400", "FH 440", "FH 460", "FH 500", "FH 540"],
   "Volkswagen": ["Worker 13.180", "Worker 24.220", "Titan 18.310", "Constellation 24.250", "Constellation 24.280", "Constellation 25.320", "Meteor 28.460", "Meteor 29.520"],
@@ -130,7 +130,10 @@ const VehiclesPage = () => {
 
             {/* Fleet owner toggle */}
             <div className="flex items-center justify-between py-2">
-              <label className="text-sm text-muted-foreground">Sou dono de frota?</label>
+              <div>
+                <label className="text-sm text-foreground">Você é dono de frota?</label>
+                <p className="text-[10px] text-muted-foreground/60 leading-tight">selecione pra colocar o nome do motorista do seu caminhão</p>
+              </div>
               <Switch checked={isFleetOwner} onCheckedChange={setIsFleetOwner} />
             </div>
 

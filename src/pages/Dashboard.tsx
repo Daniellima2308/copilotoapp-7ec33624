@@ -63,9 +63,11 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
       <header className="px-4 pt-6 pb-4">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-3">
-            <img src={logoImg} alt="Copiloto" className="h-10 w-auto drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+        <div className="flex items-center gap-3 mb-1">
+          <img src={logoImg} alt="Copiloto" className="h-10 w-auto drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+          <div>
+            <h1 className="text-xl font-black tracking-tight">Copiloto</h1>
+            <p className="text-[10px] text-muted-foreground leading-tight">seu parceiro na gestão de viagem</p>
           </div>
         </div>
       </header>

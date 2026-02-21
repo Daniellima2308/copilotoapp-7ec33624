@@ -5,15 +5,16 @@ import { ArrowLeft, Plus, Trash2, Truck, User } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Iveco", "DAF"] as const;
+const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
 const MODELS_BY_BRAND: Record<string, string[]> = {
-  "Mercedes-Benz": ["Atego 2426", "Actros 2651", "Axor 2544", "Atego 1719", "Actros 2546", "Arocs 4148"],
-  "Scania": ["R450", "R500", "R540", "P320", "P360", "G500"],
-  "Volvo": ["FH 540", "FH 460", "FM 380", "VM 330", "VM 270", "FH 500"],
-  "Volkswagen": ["Constellation 24.280", "Delivery 11.180", "Meteor 28.460", "Constellation 19.420", "Delivery 9.170"],
-  "Iveco": ["S-Way 480", "Hi-Way 600", "Tector 240", "Daily 35-150", "Tector 170"],
-  "DAF": ["XF 530", "XF 480", "CF 410", "CF 370", "LF 220"],
+  "Mercedes-Benz": ["1113", "1513", "1620", "1634", "1935", "1938", "Atego 2426", "Atego 2430", "Atron 1635", "Axor 2544", "Axor 2546", "Actros 2546", "Actros 2651"],
+  "Scania": ["112", "113", "124", "G380", "G420", "P310", "P360", "R440", "R450", "R500", "R540"],
+  "Volvo": ["EDC", "NL12", "VM 270", "VM 330", "FH12 380", "FH 400", "FH 440", "FH 460", "FH 500", "FH 540"],
+  "Volkswagen": ["Worker 13.180", "Worker 24.220", "Titan 18.310", "Constellation 24.250", "Constellation 24.280", "Constellation 25.320", "Meteor 28.460", "Meteor 29.520"],
+  "Ford": ["F-4000", "Cargo 815", "Cargo 1119", "Cargo 2422", "Cargo 2429", "Cargo 2842"],
+  "Iveco": ["EuroTech", "Tector 240E28", "Stralis 380", "Stralis 460", "Hi-Way 440", "Hi-Way 480", "Hi-Way 560"],
+  "DAF": ["CF 85", "XF 105", "XF 480", "XF 530"],
 };
 
 const VehiclesPage = () => {

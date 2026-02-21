@@ -73,8 +73,23 @@ const Dashboard = () => {
       </header>
 
       <div className="px-4 space-y-5">
-        {/* Period Filter */}
-        <PeriodFilter value={period} onChange={setPeriod} />
+        {/* Period Filter + Export PDF */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <PeriodFilter value={period} onChange={setPeriod} />
+          </div>
+          {filteredTrips.length > 0 && (
+            <button
+              onClick={() => {
+                const periodLabels: Record<string, string> = { all: "Todos", today: "Hoje", week: "Semana", month: "Mês", year: "Ano" };
+                exportMultipleTripsPdf(filteredTrips, data.vehicles, periodLabels[period] || period);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-profit/10 text-profit hover:bg-profit/20 transition-colors text-xs font-bold whitespace-nowrap"
+            >
+              <FileDown className="w-4 h-4" /> PDF
+            </button>
+          )}
+        </div>
 
         {/* Summary */}
         <SummaryCards
@@ -109,17 +124,6 @@ const Dashboard = () => {
               Histórico
             </h2>
             <div className="flex items-center gap-3">
-              {filteredTrips.length > 0 && (
-                <button
-                  onClick={() => {
-                    const periodLabels: Record<string, string> = { all: "Todos", today: "Hoje", week: "Semana", month: "Mês", year: "Ano" };
-                    exportMultipleTripsPdf(filteredTrips, data.vehicles, periodLabels[period] || period);
-                  }}
-                  className="flex items-center gap-1 text-xs text-profit hover:text-profit/80 transition-colors"
-                >
-                  <FileDown className="w-3.5 h-3.5" /> Exportar PDF
-                </button>
-              )}
               {finishedTrips.length > 0 && (
                 <button
                   onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}

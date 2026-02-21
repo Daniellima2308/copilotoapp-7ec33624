@@ -1,25 +1,28 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  User, Mail, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera,
+  User, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera, Loader2,
 } from "lucide-react";
+
+const SUBJECT_OPTIONS = ["Dúvida", "Problema", "Sugestão", "Outros"] as const;
 
 const MenuPage = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null }>({ display_name: null, avatar_url: null });
-  const [showSupport, setShowSupport] = useState(false);
-  const [showSuggestion, setShowSuggestion] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [supportMsg, setSupportMsg] = useState("");
-  const [suggestionMsg, setSuggestionMsg] = useState("");
+  const [contactSubject, setContactSubject] = useState<string>(SUBJECT_OPTIONS[0]);
+  const [contactMsg, setContactMsg] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [editName, setEditName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -37,23 +40,23 @@ const MenuPage = () => {
     navigate("/login");
   };
 
-  const handleSendSupport = async () => {
-    if (!supportMsg.trim() || !user) return;
+  const handleSendContact = async () => {
+    if (!contactMsg.trim() || !user) return;
     setSubmitting(true);
-    await supabase.from("support_messages").insert({ user_id: user.id, message: supportMsg.trim() });
-    toast({ title: "Mensagem enviada!", description: "Nossa equipe vai responder em breve." });
-    setSupportMsg("");
-    setShowSupport(false);
-    setSubmitting(false);
-  };
+    try {
+      const { data, error } = await supabase.functions.invoke("send-contact-email", {
+        body: { subject_type: contactSubject, message: contactMsg.trim() },
+      });
 
-  const handleSendSuggestion = async () => {
-    if (!suggestionMsg.trim() || !user) return;
-    setSubmitting(true);
-    await supabase.from("suggestions").insert({ user_id: user.id, suggestion: suggestionMsg.trim() });
-    toast({ title: "Sugestão enviada! 💡", description: "Obrigado por ajudar a melhorar o Copiloto!" });
-    setSuggestionMsg("");
-    setShowSuggestion(false);
+      if (error) throw error;
+
+      toast({ title: "Mensagem enviada com sucesso!", description: "Nossa equipe vai analisar e responder em breve." });
+      setContactMsg("");
+      setContactSubject(SUBJECT_OPTIONS[0]);
+      setShowContact(false);
+    } catch (err) {
+      toast({ title: "Erro ao enviar", description: "Tente novamente mais tarde.", variant: "destructive" });
+    }
     setSubmitting(false);
   };
 
@@ -88,6 +91,45 @@ const MenuPage = () => {
     setSubmitting(false);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Imagem muito grande", description: "O tamanho máximo é 2MB.", variant: "destructive" });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filePath = `${user.id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: avatarUrl })
+        .eq("user_id", user.id);
+
+      if (updateError) throw updateError;
+
+      setProfile((p) => ({ ...p, avatar_url: avatarUrl }));
+      toast({ title: "Foto de perfil atualizada com sucesso!" });
+    } catch (err: any) {
+      toast({ title: "Erro no upload", description: err.message || "Tente novamente.", variant: "destructive" });
+    }
+    setUploadingAvatar(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const initials = (profile.display_name || user?.email || "U").slice(0, 2).toUpperCase();
 
   return (
@@ -99,11 +141,34 @@ const MenuPage = () => {
       <div className="px-4 space-y-6">
         {/* Profile Card */}
         <div className="gradient-card rounded-xl p-6 flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-black shrink-0">
-            {profile.avatar_url ? (
+          <button
+            type="button"
+            className="relative w-16 h-16 rounded-full shrink-0 group"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingAvatar}
+          >
+            {uploadingAvatar ? (
+              <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+              </div>
+            ) : profile.avatar_url ? (
               <img src={profile.avatar_url} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-            ) : initials}
-          </div>
+            ) : (
+              <div className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-black">
+                {initials}
+              </div>
+            )}
+            <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-primary flex items-center justify-center border-2 border-card">
+              <Camera className="w-3 h-3 text-primary-foreground" />
+            </span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
           <div className="min-w-0">
             <p className="text-lg font-bold truncate">{profile.display_name || "Motorista"}</p>
             <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
@@ -123,9 +188,9 @@ const MenuPage = () => {
         <section>
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Central de Ajuda</h2>
           <div className="space-y-1">
-            <MenuItem icon={MessageCircle} label="Falar com o Suporte" onClick={() => setShowSupport(true)} />
+            <MenuItem icon={MessageCircle} label="Falar com o Suporte" onClick={() => { setContactSubject("Dúvida"); setShowContact(true); }} />
             <button
-              onClick={() => setShowSuggestion(true)}
+              onClick={() => { setContactSubject("Sugestão"); setShowContact(true); }}
               className="w-full gradient-card rounded-lg p-4 flex items-center justify-between hover:bg-accent/50 transition-colors border border-warning/30"
             >
               <div className="flex items-center gap-3">
@@ -147,35 +212,47 @@ const MenuPage = () => {
         </button>
       </div>
 
-      {/* Modals */}
-      {showSupport && (
-        <Modal title="💬 Falar com o Suporte" onClose={() => setShowSupport(false)}>
-          <textarea
-            placeholder="Descreva sua dúvida ou problema..."
-            value={supportMsg}
-            onChange={(e) => setSupportMsg(e.target.value)}
-            className="input-field w-full min-h-[120px] text-base"
-          />
-          <button onClick={handleSendSupport} disabled={submitting || !supportMsg.trim()} className="w-full gradient-profit text-primary-foreground rounded-xl py-3 font-bold disabled:opacity-50">
-            Enviar
-          </button>
+      {/* Contact Modal (Support + Suggestions unified) */}
+      {showContact && (
+        <Modal title={contactSubject === "Sugestão" ? "💡 Caixa de Sugestões" : "💬 Falar com o Suporte"} onClose={() => setShowContact(false)}>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Assunto</label>
+              <select
+                value={contactSubject}
+                onChange={(e) => setContactSubject(e.target.value)}
+                className="input-field w-full py-3 text-base"
+              >
+                {SUBJECT_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Mensagem</label>
+              <textarea
+                placeholder="Descreva sua dúvida, problema ou sugestão..."
+                value={contactMsg}
+                onChange={(e) => setContactMsg(e.target.value)}
+                className="input-field w-full min-h-[120px] text-base"
+              />
+            </div>
+            <button
+              onClick={handleSendContact}
+              disabled={submitting || !contactMsg.trim()}
+              className={`w-full rounded-xl py-3 font-bold disabled:opacity-50 ${
+                contactSubject === "Sugestão"
+                  ? "bg-warning text-warning-foreground"
+                  : "gradient-profit text-primary-foreground"
+              }`}
+            >
+              {submitting ? "Enviando..." : "Enviar Mensagem"}
+            </button>
+          </div>
         </Modal>
       )}
 
-      {showSuggestion && (
-        <Modal title="💡 Caixa de Sugestões" onClose={() => setShowSuggestion(false)}>
-          <textarea
-            placeholder="Sua ideia para melhorar o Copiloto..."
-            value={suggestionMsg}
-            onChange={(e) => setSuggestionMsg(e.target.value)}
-            className="input-field w-full min-h-[120px] text-base"
-          />
-          <button onClick={handleSendSuggestion} disabled={submitting || !suggestionMsg.trim()} className="w-full bg-warning text-warning-foreground rounded-xl py-3 font-bold disabled:opacity-50">
-            Enviar Sugestão
-          </button>
-        </Modal>
-      )}
-
+      {/* Password Modal */}
       {showPassword && (
         <Modal title="🔒 Alterar Senha" onClose={() => setShowPassword(false)}>
           <input
@@ -192,6 +269,7 @@ const MenuPage = () => {
         </Modal>
       )}
 
+      {/* Edit Profile Modal */}
       {showEditProfile && (
         <Modal title="✏️ Editar Perfil" onClose={() => setShowEditProfile(false)}>
           <input

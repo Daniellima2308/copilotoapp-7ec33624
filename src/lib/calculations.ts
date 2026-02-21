@@ -25,10 +25,11 @@ export function getTripTotalKm(trip: Trip): number {
 }
 
 export function getTripAverageConsumption(trip: Trip): number {
-  const totalLiters = trip.fuelings.reduce((sum, f) => sum + f.liters, 0);
-  const totalKm = getTripTotalKm(trip);
-  if (totalLiters === 0) return 0;
-  return Math.round((totalKm / totalLiters) * 100) / 100;
+  // Only consider fuelings with fullTank that have a calculated average
+  const fullTankFuelings = trip.fuelings.filter((f) => (f.fullTank ?? true) && f.average > 0);
+  if (fullTankFuelings.length === 0) return 0;
+  const avgSum = fullTankFuelings.reduce((sum, f) => sum + f.average, 0);
+  return Math.round((avgSum / fullTankFuelings.length) * 100) / 100;
 }
 
 export function getTripCostPerKm(trip: Trip): number {

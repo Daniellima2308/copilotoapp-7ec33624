@@ -7,6 +7,7 @@ import { PeriodFilter } from "@/components/PeriodFilter";
 import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, getTripNetRevenue } from "@/lib/calculations";
 import { Trip } from "@/types";
 import { Plus, Truck, Trash2, FileDown } from "lucide-react";
+import logoImg from "@/assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { exportMultipleTripsPdf } from "@/lib/exportPdf";
 
@@ -63,9 +64,8 @@ const Dashboard = () => {
       {/* Header */}
       <header className="px-4 pt-6 pb-4">
         <div className="flex items-center justify-between mb-1">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight">Estrada Real</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Gestão de Fretes</p>
+          <div className="flex items-center gap-3">
+            <img src={logoImg} alt="Copiloto" className="h-10 w-auto drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
           </div>
         </div>
       </header>

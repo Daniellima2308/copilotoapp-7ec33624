@@ -103,7 +103,7 @@ type FreightQuality = "bad" | "medium" | "great";
 
 function getFreightQuality(offeredValue: number, anttFloor: number, netProfit: number): FreightQuality {
   const margin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : -100;
-  if (netProfit < 0 || margin < 10) return "bad";
+  if (netProfit < 0 || margin < 18) return "bad";
   if (margin >= 30 || offeredValue >= anttFloor) return "great";
   return "medium";
 }

@@ -33,7 +33,7 @@ function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
 }
 
 const Dashboard = () => {
-  const { data, getActiveTrip, addTrip, clearHistory } = useApp();
+  const { data, getActiveTrip, addTrip, clearHistory, loading } = useApp();
   const [period, setPeriod] = useState("month");
   const navigate = useNavigate();
 
@@ -58,6 +58,14 @@ const Dashboard = () => {
     }
     navigate("/new-trip");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">

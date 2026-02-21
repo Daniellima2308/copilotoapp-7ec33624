@@ -8,9 +8,9 @@ const NewTripPage = () => {
   const navigate = useNavigate();
   const [vehicleId, setVehicleId] = useState(data.vehicles[0]?.id || "");
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!vehicleId) return;
-    const trip = addTrip(vehicleId);
+    const trip = await addTrip(vehicleId);
     navigate(`/trip/${trip.id}`);
   };
 

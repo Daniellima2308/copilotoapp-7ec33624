@@ -56,11 +56,11 @@ const TripDetailPage = () => {
                 className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
                 <FileDown className="w-4 h-4 text-profit" />
               </button>
-              <button onClick={() => { finishTrip(trip.id); navigate("/"); }}
+              <button onClick={async () => { await finishTrip(trip.id); navigate("/"); }}
                 className="p-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors">
                 <CheckCircle className="w-4 h-4 text-profit" />
               </button>
-              <button onClick={() => { if (confirm("Excluir viagem?")) { deleteTrip(trip.id); navigate("/"); } }}
+              <button onClick={async () => { if (confirm("Excluir viagem?")) { await deleteTrip(trip.id); navigate("/"); } }}
                 className="p-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors">
                 <Trash2 className="w-4 h-4 text-expense" />
               </button>

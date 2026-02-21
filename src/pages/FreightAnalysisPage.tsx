@@ -150,8 +150,8 @@ const FreightAnalysisPage = () => {
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [offeredValue, setOfferedValue] = useState<number>(0);
   const [commissionPercent, setCommissionPercent] = useState<number>(17);
-  const [dieselPrice, setDieselPrice] = useState<number>(6.29);
-  const [avgKmPerLiter, setAvgKmPerLiter] = useState<number>(2.5);
+  const [dieselPrice, setDieselPrice] = useState<number>(0);
+  const [avgKmPerLiter, setAvgKmPerLiter] = useState<number>(0);
   const [cargoType, setCargoType] = useState("geral");
   const [axles, setAxles] = useState<number>(3);
   const [tollCost, setTollCost] = useState<number>(0);
@@ -222,7 +222,7 @@ const FreightAnalysisPage = () => {
   const results = useMemo(() => {
     if (distanceKm <= 0 || offeredValue <= 0) return null;
 
-    const fuelCost = (distanceKm / (avgKmPerLiter || 1)) * dieselPrice;
+    const fuelCost = (avgKmPerLiter > 0 && dieselPrice > 0) ? (distanceKm / avgKmPerLiter) * dieselPrice : 0;
     const commissionValue = (offeredValue * commissionPercent) / 100;
     const custoPedagioEfetivo = valePedagio ? 0 : tollCost;
     const totalExpenses = fuelCost + custoPedagioEfetivo + commissionValue;
@@ -374,7 +374,7 @@ const FreightAnalysisPage = () => {
                   step="0.01"
                   value={dieselPrice || ""}
                   onChange={(e) => setDieselPrice(Number(e.target.value))}
-                  className="input-field"
+                  className="input-field" placeholder="Ex: 5,55"
                 />
               </div>
               <div>
@@ -385,7 +385,7 @@ const FreightAnalysisPage = () => {
                   step="0.1"
                   value={avgKmPerLiter || ""}
                   onChange={(e) => setAvgKmPerLiter(Number(e.target.value))}
-                  className="input-field"
+                  className="input-field" placeholder="Ex: 3,5"
                 />
               </div>
               <div>

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { getRouteInfo } from "@/lib/routeApi";
 import { calculateToll } from "@/lib/tollApi";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, CheckCircle, TrendingUp, Calculator, Route } from "lucide-react";
+import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, TrendingUp, Calculator, Route, Scale } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,13 +99,12 @@ function calcAnttFloor(distanceKm: number, axles: number, cargoType: string, inc
   return (distanceKm * dados.ccd) + (incluiCargaDescarga ? dados.cc : 0);
 }
 
-type FreightQuality = "bad" | "medium" | "good" | "great";
+type FreightQuality = "bad" | "medium" | "great";
 
 function getFreightQuality(offeredValue: number, anttFloor: number, netProfit: number): FreightQuality {
   const margin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : -100;
   if (netProfit < 0 || margin < 10) return "bad";
   if (margin >= 35 || offeredValue >= anttFloor) return "great";
-  if (margin >= 20) return "good";
   return "medium";
 }
 
@@ -115,21 +114,14 @@ const QUALITY_CONFIG: Record<FreightQuality, { bg: string; border: string; icon:
     border: "border-destructive/30",
     icon: AlertTriangle,
     label: "FRETE RUIM",
-    desc: "Risco de Prejuízo",
+    desc: "Margem Baixa ou Prejuízo",
   },
   medium: {
     bg: "bg-warning/15",
     border: "border-warning/30",
-    icon: Gauge,
-    label: "FRETE MÉDIO",
-    desc: "Cobre Custos (Retorno)",
-  },
-  good: {
-    bg: "bg-info/15",
-    border: "border-info/30",
-    icon: CheckCircle,
-    label: "FRETE BOM",
-    desc: "Margem Segura",
+    icon: Scale,
+    label: "FRETE MAIS OU MENOS",
+    desc: "Cobre Custos / Retorno",
   },
   great: {
     bg: "bg-profit/15",
@@ -476,7 +468,7 @@ const FreightAnalysisPage = () => {
                   <div className="h-3 rounded-full bg-secondary overflow-hidden relative">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        results.quality === "bad" ? "bg-destructive" : results.quality === "good" ? "bg-warning" : "bg-profit"
+                        results.quality === "bad" ? "bg-destructive" : results.quality === "medium" ? "bg-warning" : "bg-profit"
                       }`}
                       style={{ width: `${Math.min((offeredValue / (results.anttFloor || 1)) * 100, 100)}%` }}
                     />

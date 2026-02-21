@@ -27,6 +27,7 @@ export interface Fueling {
   kmCurrent: number;
   pricePerLiter: number;
   average: number;
+  fullTank: boolean;
   date: string;
 }
 

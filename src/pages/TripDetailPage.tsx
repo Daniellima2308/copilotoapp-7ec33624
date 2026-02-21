@@ -9,10 +9,12 @@ import {
 import { EXPENSE_CATEGORY_LABELS, ExpenseCategory, Fueling } from "@/types";
 import {
   ArrowLeft, Plus, Fuel, MapPin, Receipt, Gauge, DollarSign, TrendingUp,
-  TrendingDown, Trash2, CheckCircle, Pencil, FileDown,
+  TrendingDown, Trash2, CheckCircle, Pencil, FileDown, Droplets,
 } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { exportSingleTripPdf } from "@/lib/exportPdf";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type Tab = "freights" | "fuel" | "expenses";
 
@@ -173,6 +175,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const [liters, setLiters] = useState("");
   const [kmCur, setKmCur] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [fullTank, setFullTank] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const startEdit = (f: Fueling) => {
@@ -181,6 +184,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
     setLiters(String(f.liters));
     setKmCur(String(f.kmCurrent));
     setDate(f.date);
+    setFullTank(f.fullTank ?? true);
     setEditingId(f.id);
     setShowForm(true);
   };
@@ -188,6 +192,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const resetForm = () => {
     setStation(""); setValue(""); setLiters(""); setKmCur("");
     setDate(new Date().toISOString().slice(0, 10));
+    setFullTank(true);
     setEditingId(null);
     setShowForm(false);
   };
@@ -195,7 +200,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!station || !value || !liters || !kmCur) return;
-    const payload = { stationName: station, totalValue: parseFloat(value), liters: parseFloat(liters), kmCurrent: parseFloat(kmCur), date };
+    const payload = { stationName: station, totalValue: parseFloat(value), liters: parseFloat(liters), kmCurrent: parseFloat(kmCur), date, fullTank };
     if (editingId) {
       updateFueling(trip.id, editingId, payload);
     } else {
@@ -206,33 +211,55 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
 
   return (
     <div className="space-y-2">
-      {trip.fuelings.map((f: any) => (
-        <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">{f.stationName}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L • {formatNumber(f.average)} km/l
-            </p>
+      {trip.fuelings.map((f: Fueling) => {
+        const isFullTank = f.fullTank ?? true;
+        return (
+          <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-1.5 rounded-md ${isFullTank ? "bg-profit/15" : "bg-warning/15"}`}>
+                {isFullTank
+                  ? <Fuel className="w-4 h-4 text-profit" />
+                  : <Droplets className="w-4 h-4 text-warning" />
+                }
+              </div>
+              <div>
+                <p className="text-sm font-medium">{f.stationName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L
+                </p>
+                {isFullTank && f.average > 0 ? (
+                  <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>
+                ) : !isFullTank ? (
+                  <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold font-mono text-expense">{formatCurrency(f.totalValue)}</span>
+              {isOpen && (
+                <>
+                  <button onClick={() => startEdit(f)} className="p-1"><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
+                  <button onClick={() => deleteFueling(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
+                </>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold font-mono text-expense">{formatCurrency(f.totalValue)}</span>
-            {isOpen && (
-              <>
-                <button onClick={() => startEdit(f)} className="p-1"><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
-                <button onClick={() => deleteFueling(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {isOpen && (showForm ? (
         <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <input placeholder="Nome do Posto" value={station} onChange={(e) => setStation(e.target.value)} className="input-field col-span-2" />
             <input placeholder="Valor Total (R$)" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
             <input placeholder="Litros" type="number" step="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} className="input-field" />
-            <input placeholder="KM Atual" type="number" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
+            <input placeholder="Odômetro Atual (KM)" type="number" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
+          </div>
+          <div className="flex items-center gap-3 py-1">
+            <Switch id="fullTank" checked={fullTank} onCheckedChange={setFullTank} />
+            <Label htmlFor="fullTank" className="text-sm font-medium cursor-pointer">
+              Completou o tanque?
+            </Label>
           </div>
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">

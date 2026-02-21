@@ -4,6 +4,8 @@ export interface Vehicle {
   model: string;
   year: number;
   plate: string;
+  isFleetOwner?: boolean;
+  driverName?: string;
 }
 
 export interface Freight {

@@ -1,7 +1,20 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Truck, User } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Iveco", "DAF"] as const;
+
+const MODELS_BY_BRAND: Record<string, string[]> = {
+  "Mercedes-Benz": ["Atego 2426", "Actros 2651", "Axor 2544", "Atego 1719", "Actros 2546", "Arocs 4148"],
+  "Scania": ["R450", "R500", "R540", "P320", "P360", "G500"],
+  "Volvo": ["FH 540", "FH 460", "FM 380", "VM 330", "VM 270", "FH 500"],
+  "Volkswagen": ["Constellation 24.280", "Delivery 11.180", "Meteor 28.460", "Constellation 19.420", "Delivery 9.170"],
+  "Iveco": ["S-Way 480", "Hi-Way 600", "Tector 240", "Daily 35-150", "Tector 170"],
+  "DAF": ["XF 530", "XF 480", "CF 410", "CF 370", "LF 220"],
+};
 
 const VehiclesPage = () => {
   const { data, addVehicle, deleteVehicle } = useApp();
@@ -9,16 +22,39 @@ const VehiclesPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
+  const [customModel, setCustomModel] = useState("");
   const [year, setYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [isFleetOwner, setIsFleetOwner] = useState(false);
+  const [driverName, setDriverName] = useState("");
+
+  const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
+
+  const handleBrandChange = (val: string) => {
+    setBrand(val);
+    setModel("");
+    setCustomModel("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!brand || !model || !year || !plate) return;
-    addVehicle({ brand, model, year: parseInt(year), plate: plate.toUpperCase() });
-    setBrand(""); setModel(""); setYear(""); setPlate("");
+    const finalModel = model === "__custom" ? customModel : model;
+    if (!brand || !finalModel || !year || !plate) return;
+    if (isFleetOwner && !driverName.trim()) return;
+    addVehicle({
+      brand,
+      model: finalModel,
+      year: parseInt(year),
+      plate: plate.toUpperCase(),
+      isFleetOwner,
+      driverName: isFleetOwner ? driverName.trim() : undefined,
+    });
+    setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate("");
+    setIsFleetOwner(false); setDriverName("");
     setShowForm(false);
   };
+
+  const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -37,6 +73,11 @@ const VehiclesPage = () => {
               <div>
                 <p className="text-sm font-medium">{v.brand} {v.model} {v.year}</p>
                 <p className="text-xs text-muted-foreground font-mono">{v.plate}</p>
+                {v.driverName && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <User className="w-3 h-3" /> {v.driverName}
+                  </p>
+                )}
               </div>
             </div>
             <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
@@ -49,20 +90,60 @@ const VehiclesPage = () => {
         {showForm ? (
           <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input placeholder="Marca (ex: Mercedes-Benz)" value={brand} onChange={(e) => setBrand(e.target.value)}
-                className="bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder="Modelo (ex: Atego 2426)" value={model} onChange={(e) => setModel(e.target.value)}
-                className="bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              {/* Brand Select */}
+              <Select value={brand} onValueChange={handleBrandChange}>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
+                  <SelectValue placeholder="Marca" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRUCK_BRANDS.map((b) => (
+                    <SelectItem key={b} value={b}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Model Select */}
+              <Select value={model} onValueChange={setModel} disabled={!brand}>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
+                  <SelectValue placeholder="Modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                  <SelectItem value="__custom">Outro modelo...</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Custom model input */}
+              {model === "__custom" && (
+                <input placeholder="Digite o modelo" value={customModel} onChange={(e) => setCustomModel(e.target.value)}
+                  className={`${inputClass} col-span-2`} />
+              )}
+
               <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)}
-                className="bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+                className={inputClass} />
               <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7}
-                className="bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary uppercase font-mono" />
+                className={`${inputClass} uppercase font-mono`} />
             </div>
+
+            {/* Fleet owner toggle */}
+            <div className="flex items-center justify-between py-2">
+              <label className="text-sm text-muted-foreground">Sou dono de frota?</label>
+              <Switch checked={isFleetOwner} onCheckedChange={setIsFleetOwner} />
+            </div>
+
+            {isFleetOwner && (
+              <input placeholder="Nome do Motorista" value={driverName} onChange={(e) => setDriverName(e.target.value)}
+                className={`${inputClass} w-full`} />
+            )}
+
             <div className="flex gap-2">
               <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">
                 Salvar
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">
+              <button type="button" onClick={() => { setShowForm(false); setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setIsFleetOwner(false); setDriverName(""); }}
+                className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">
                 Cancelar
               </button>
             </div>

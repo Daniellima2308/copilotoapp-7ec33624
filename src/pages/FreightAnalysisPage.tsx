@@ -3,39 +3,76 @@ import { getRouteInfo } from "@/lib/routeApi";
 import { calculateToll } from "@/lib/tollApi";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, CheckCircle, TrendingUp, Calculator, Route } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 
-// Coeficientes ANTT aproximados (R$/km) por número de eixos — Referência ANTT 2024
-const ANTT_COEF_PER_KM: Record<number, number> = {
-  2: 3.35,
-  3: 3.65,
-  4: 4.15,
-  5: 4.54,
-  6: 4.90,
-  7: 5.38,
-  9: 5.99,
+// Tabela ANTT - Resolução Nº 6.076/2026
+const tabelaANTT2026: Record<string, Record<number, { ccd: number; cc: number }>> = {
+  'Carga Geral': {
+    2: { ccd: 3.71, cc: 444.84 },
+    3: { ccd: 4.18, cc: 500.84 },
+    4: { ccd: 4.65, cc: 556.84 },
+    5: { ccd: 5.11, cc: 612.84 },
+    6: { ccd: 5.58, cc: 668.84 },
+    7: { ccd: 6.05, cc: 724.84 },
+    9: { ccd: 8.53, cc: 877.83 },
+  },
+  'Granel Sólido': {
+    2: { ccd: 3.92, cc: 460.50 },
+    3: { ccd: 4.45, cc: 518.50 },
+    4: { ccd: 4.95, cc: 575.00 },
+    5: { ccd: 5.48, cc: 633.20 },
+    6: { ccd: 5.98, cc: 690.80 },
+    7: { ccd: 6.49, cc: 750.10 },
+    9: { ccd: 9.15, cc: 905.00 },
+  },
+  'Frigorificada': {
+    2: { ccd: 4.35, cc: 510.00 },
+    3: { ccd: 4.98, cc: 575.40 },
+    4: { ccd: 5.62, cc: 641.00 },
+    5: { ccd: 6.25, cc: 708.50 },
+    6: { ccd: 6.89, cc: 775.20 },
+    7: { ccd: 7.52, cc: 840.90 },
+    9: { ccd: 10.45, cc: 1015.50 },
+  },
+  'Neogranel': {
+    2: { ccd: 3.55, cc: 420.00 },
+    3: { ccd: 4.02, cc: 475.20 },
+    4: { ccd: 4.48, cc: 530.50 },
+    5: { ccd: 4.95, cc: 585.80 },
+    6: { ccd: 5.41, cc: 641.10 },
+    7: { ccd: 5.88, cc: 696.40 },
+    9: { ccd: 8.25, cc: 845.00 },
+  },
+  'Carga Perigosa': {
+    2: { ccd: 4.58, cc: 545.00 },
+    3: { ccd: 5.25, cc: 615.50 },
+    4: { ccd: 5.92, cc: 686.00 },
+    5: { ccd: 6.58, cc: 756.50 },
+    6: { ccd: 7.25, cc: 827.00 },
+    7: { ccd: 7.91, cc: 897.50 },
+    9: { ccd: 11.05, cc: 1085.00 },
+  },
 };
 
-// Multiplicadores por tipo de carga
-const CARGO_MULTIPLIERS: Record<string, number> = {
-  geral: 1.0,
-  granel: 1.0,
-  frigorificada: 1.3,
-  perigosa: 1.3,
-  neogranel: 1.0,
-  conteiner: 1.15,
+// Mapeamento dos values do select para as chaves da tabela ANTT
+const CARGO_TO_ANTT_KEY: Record<string, string> = {
+  geral: 'Carga Geral',
+  granel: 'Granel Sólido',
+  frigorificada: 'Frigorificada',
+  neogranel: 'Neogranel',
+  perigosa: 'Carga Perigosa',
 };
 
 const CARGO_TYPES = [
   { value: "geral", label: "Carga Geral" },
   { value: "granel", label: "Granel Sólido" },
   { value: "frigorificada", label: "Frigorificada" },
-  { value: "perigosa", label: "Perigosa" },
+  { value: "perigosa", label: "Carga Perigosa" },
   { value: "neogranel", label: "Neogranel" },
-  { value: "conteiner", label: "Contêiner" },
 ];
 
 const AXLE_OPTIONS = [2, 3, 4, 5, 6, 7, 9];
@@ -56,10 +93,10 @@ function estimateToll(distanceKm: number, axles: number): number {
   return Math.round(distanceKm * rate * 100) / 100;
 }
 
-function calcAnttFloor(distanceKm: number, axles: number, cargoType: string): number {
-  const coef = ANTT_COEF_PER_KM[axles] ?? ANTT_COEF_PER_KM[3];
-  const mult = CARGO_MULTIPLIERS[cargoType] ?? 1.0;
-  return distanceKm * coef * mult;
+function calcAnttFloor(distanceKm: number, axles: number, cargoType: string, incluiCargaDescarga: boolean): number {
+  const anttKey = CARGO_TO_ANTT_KEY[cargoType] || 'Carga Geral';
+  const dados = tabelaANTT2026[anttKey]?.[axles] ?? tabelaANTT2026['Carga Geral'][3];
+  return (distanceKm * dados.ccd) + (incluiCargaDescarga ? dados.cc : 0);
 }
 
 type FreightQuality = "bad" | "medium" | "good" | "great";
@@ -121,6 +158,7 @@ const FreightAnalysisPage = () => {
   const [tollManuallyEdited, setTollManuallyEdited] = useState(false);
   const [loadingToll, setLoadingToll] = useState(false);
   const [tollSource, setTollSource] = useState<"api" | "estimate" | "manual">("estimate");
+  const [incluiCargaDescarga, setIncluiCargaDescarga] = useState(true);
   const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coordsRef = useRef<{ originLat: number; originLng: number; destLat: number; destLng: number } | null>(null);
 
@@ -187,13 +225,13 @@ const FreightAnalysisPage = () => {
     const commissionValue = (offeredValue * commissionPercent) / 100;
     const totalExpenses = fuelCost + tollCost + commissionValue;
     const netProfit = offeredValue - totalExpenses;
-    const anttFloor = calcAnttFloor(distanceKm, axles, cargoType);
+    const anttFloor = calcAnttFloor(distanceKm, axles, cargoType, incluiCargaDescarga);
     const quality = getFreightQuality(offeredValue, anttFloor, netProfit);
     const profitPerKm = distanceKm > 0 ? netProfit / distanceKm : 0;
     const profitMargin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : 0;
 
     return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm, profitMargin };
-  }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost]);
+  }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost, incluiCargaDescarga]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -358,6 +396,10 @@ const FreightAnalysisPage = () => {
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <label className="text-xs text-muted-foreground">Inclui Carga/Descarga?</label>
+              <Switch checked={incluiCargaDescarga} onCheckedChange={setIncluiCargaDescarga} />
             </div>
           </CardContent>
         </Card>

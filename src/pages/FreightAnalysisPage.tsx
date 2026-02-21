@@ -159,6 +159,7 @@ const FreightAnalysisPage = () => {
   const [loadingToll, setLoadingToll] = useState(false);
   const [tollSource, setTollSource] = useState<"api" | "estimate" | "manual">("estimate");
   const [incluiCargaDescarga, setIncluiCargaDescarga] = useState(true);
+  const [valePedagio, setValePedagio] = useState(false);
   const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coordsRef = useRef<{ originLat: number; originLng: number; destLat: number; destLng: number } | null>(null);
 
@@ -223,15 +224,16 @@ const FreightAnalysisPage = () => {
 
     const fuelCost = (distanceKm / (avgKmPerLiter || 1)) * dieselPrice;
     const commissionValue = (offeredValue * commissionPercent) / 100;
-    const totalExpenses = fuelCost + tollCost + commissionValue;
+    const custoPedagioEfetivo = valePedagio ? 0 : tollCost;
+    const totalExpenses = fuelCost + custoPedagioEfetivo + commissionValue;
     const netProfit = offeredValue - totalExpenses;
     const anttFloor = calcAnttFloor(distanceKm, axles, cargoType, incluiCargaDescarga);
     const quality = getFreightQuality(offeredValue, anttFloor, netProfit);
     const profitPerKm = distanceKm > 0 ? netProfit / distanceKm : 0;
     const profitMargin = offeredValue > 0 ? (netProfit / offeredValue) * 100 : 0;
 
-    return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm, profitMargin };
-  }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost, incluiCargaDescarga]);
+    return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm, profitMargin, custoPedagioEfetivo };
+  }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost, incluiCargaDescarga, valePedagio]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -346,8 +348,14 @@ const FreightAnalysisPage = () => {
                     Recalcular automático
                   </button>
                 )}
+                </div>
+                <div className="col-span-2 flex items-center justify-between pt-1">
+                  <div>
+                    <label className="text-xs text-foreground">Transportadora paga o Pedágio? (Vale Pedágio)</label>
+                  </div>
+                  <Switch checked={valePedagio} onCheckedChange={setValePedagio} />
+                </div>
               </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -435,7 +443,7 @@ const FreightAnalysisPage = () => {
                   <MetricBox label="Distância" value={`${formatNumber(distanceKm)} km`} />
                   <MetricBox label="Piso ANTT" value={formatCurrency(results.anttFloor)} highlight="info" />
                   <MetricBox label="Combustível" value={formatCurrency(results.fuelCost)} />
-                  <MetricBox label="Pedágio" value={formatCurrency(tollCost)} />
+                  <MetricBox label={valePedagio ? "Pedágio (Isento)" : "Pedágio"} value={valePedagio ? "R$ 0,00" : formatCurrency(tollCost)} highlight={valePedagio ? "profit" : undefined} />
                   <MetricBox label="Comissão" value={formatCurrency(results.commissionValue)} />
                   <MetricBox label="Total Despesas" value={formatCurrency(results.totalExpenses)} highlight="expense" />
                 </div>

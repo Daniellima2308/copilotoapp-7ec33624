@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  User, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera, Loader2,
+  User, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera, Loader2, Wrench,
 } from "lucide-react";
 
 const SUBJECT_OPTIONS = ["Dúvida", "Problema", "Sugestão", "Outros"] as const;
@@ -181,6 +181,7 @@ const MenuPage = () => {
           <div className="space-y-1">
             <MenuItem icon={User} label="Editar Perfil" onClick={() => setShowEditProfile(true)} />
             <MenuItem icon={Lock} label="Alterar Senha" onClick={() => setShowPassword(true)} />
+            <MenuItem icon={Wrench} label="Manutenção dos Veículos" onClick={() => navigate("/maintenance")} />
           </div>
         </section>
 

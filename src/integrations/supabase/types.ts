@@ -158,6 +158,44 @@ export type Database = {
           },
         ]
       }
+      maintenance_services: {
+        Row: {
+          created_at: string
+          id: string
+          interval_km: number
+          last_change_km: number
+          service_name: string
+          user_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interval_km?: number
+          last_change_km?: number
+          service_name: string
+          user_id: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interval_km?: number
+          last_change_km?: number
+          service_name?: string
+          user_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_services_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -272,6 +310,7 @@ export type Database = {
         Row: {
           brand: string
           created_at: string
+          current_km: number
           driver_name: string | null
           id: string
           is_fleet_owner: boolean
@@ -283,6 +322,7 @@ export type Database = {
         Insert: {
           brand: string
           created_at?: string
+          current_km?: number
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
@@ -294,6 +334,7 @@ export type Database = {
         Update: {
           brand?: string
           created_at?: string
+          current_km?: number
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean

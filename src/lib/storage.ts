@@ -7,7 +7,7 @@ export function loadData(): AppData {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { vehicles: [], trips: [] };
+  return { vehicles: [], trips: [], maintenanceServices: [] };
 }
 
 export function saveData(data: AppData): void {

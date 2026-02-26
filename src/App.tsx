@@ -15,6 +15,7 @@ import TripDetailPage from "./pages/TripDetailPage";
 import FreightAnalysisPage from "./pages/FreightAnalysisPage";
 import HistoryPage from "./pages/HistoryPage";
 import MenuPage from "./pages/MenuPage";
+import MaintenancePage from "./pages/MaintenancePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -35,6 +36,7 @@ function ProtectedApp() {
           <Route path="/freight-analysis" element={<FreightAnalysisPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/menu" element={<MenuPage />} />
+          <Route path="/maintenance" element={<MaintenancePage />} />
         </Routes>
         <OnboardingTour />
       </AppProvider>

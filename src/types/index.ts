@@ -6,6 +6,24 @@ export interface Vehicle {
   plate: string;
   isFleetOwner?: boolean;
   driverName?: string;
+  currentKm: number;
+}
+
+export interface MaintenanceService {
+  id: string;
+  vehicleId: string;
+  serviceName: string;
+  lastChangeKm: number;
+  intervalKm: number;
+  createdAt: string;
+}
+
+export interface MaintenanceAlert {
+  service: MaintenanceService;
+  vehicle: Vehicle;
+  kmSinceChange: number;
+  kmRemaining: number;
+  status: "ok" | "warning" | "overdue";
 }
 
 export interface Freight {
@@ -78,4 +96,5 @@ export interface Trip {
 export interface AppData {
   vehicles: Vehicle[];
   trips: Trip[];
+  maintenanceServices: MaintenanceService[];
 }

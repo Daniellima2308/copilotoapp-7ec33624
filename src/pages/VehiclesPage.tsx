@@ -26,33 +26,26 @@ const VehiclesPage = () => {
   const [customModel, setCustomModel] = useState("");
   const [year, setYear] = useState("");
   const [plate, setPlate] = useState("");
+  const [currentKm, setCurrentKm] = useState("");
   const [isFleetOwner, setIsFleetOwner] = useState(false);
   const [driverName, setDriverName] = useState("");
 
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
 
-  const handleBrandChange = (val: string) => {
-    setBrand(val);
-    setModel("");
-    setCustomModel("");
-  };
+  const handleBrandChange = (val: string) => { setBrand(val); setModel(""); setCustomModel(""); };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalModel = model === "__custom" ? customModel : model;
-    if (!brand || !finalModel || !year || !plate) return;
+    if (!brand || !finalModel || !year || !plate || !currentKm) return;
     if (isFleetOwner && !driverName.trim()) return;
     addVehicle({
-      brand,
-      model: finalModel,
-      year: parseInt(year),
-      plate: plate.toUpperCase(),
-      isFleetOwner,
-      driverName: isFleetOwner ? driverName.trim() : undefined,
+      brand, model: finalModel, year: parseInt(year), plate: plate.toUpperCase(),
+      currentKm: parseFloat(currentKm),
+      isFleetOwner, driverName: isFleetOwner ? driverName.trim() : undefined,
     });
-    setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate("");
-    setIsFleetOwner(false); setDriverName("");
-    setShowForm(false);
+    setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm("");
+    setIsFleetOwner(false); setDriverName(""); setShowForm(false);
   };
 
   const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
@@ -73,7 +66,7 @@ const VehiclesPage = () => {
               <Truck className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">{v.brand} {v.model} {v.year}</p>
-                <p className="text-xs text-muted-foreground font-mono">{v.plate}</p>
+                <p className="text-xs text-muted-foreground font-mono">{v.plate} • {v.currentKm.toLocaleString("pt-BR")} km</p>
                 {v.driverName && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <User className="w-3 h-3" /> {v.driverName}
@@ -91,44 +84,24 @@ const VehiclesPage = () => {
         {showForm ? (
           <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              {/* Brand Select */}
               <Select value={brand} onValueChange={handleBrandChange}>
-                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
-                  <SelectValue placeholder="Marca" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRUCK_BRANDS.map((b) => (
-                    <SelectItem key={b} value={b}>{b}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]"><SelectValue placeholder="Marca" /></SelectTrigger>
+                <SelectContent>{TRUCK_BRANDS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
               </Select>
-
-              {/* Model Select */}
               <Select value={model} onValueChange={setModel} disabled={!brand}>
-                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
-                  <SelectValue placeholder="Modelo" />
-                </SelectTrigger>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]"><SelectValue placeholder="Modelo" /></SelectTrigger>
                 <SelectContent>
-                  {availableModels.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
+                  {availableModels.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   <SelectItem value="__custom">Outro modelo...</SelectItem>
                 </SelectContent>
               </Select>
-
-              {/* Custom model input */}
               {model === "__custom" && (
-                <input placeholder="Digite o modelo" value={customModel} onChange={(e) => setCustomModel(e.target.value)}
-                  className={`${inputClass} col-span-2`} />
+                <input placeholder="Digite o modelo" value={customModel} onChange={(e) => setCustomModel(e.target.value)} className={`${inputClass} col-span-2`} />
               )}
-
-              <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)}
-                className={inputClass} />
-              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7}
-                className={`${inputClass} uppercase font-mono`} />
+              <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)} className={inputClass} />
+              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7} className={`${inputClass} uppercase font-mono`} />
+              <input placeholder="KM Atual do Painel" type="number" value={currentKm} onChange={(e) => setCurrentKm(e.target.value)} className={`${inputClass} col-span-2`} />
             </div>
-
-            {/* Fleet owner toggle */}
             <div className="flex items-center justify-between py-2">
               <div>
                 <label className="text-sm text-foreground">Você é dono de frota?</label>
@@ -136,20 +109,13 @@ const VehiclesPage = () => {
               </div>
               <Switch checked={isFleetOwner} onCheckedChange={setIsFleetOwner} />
             </div>
-
             {isFleetOwner && (
-              <input placeholder="Nome do Motorista" value={driverName} onChange={(e) => setDriverName(e.target.value)}
-                className={`${inputClass} w-full`} />
+              <input placeholder="Nome do Motorista" value={driverName} onChange={(e) => setDriverName(e.target.value)} className={`${inputClass} w-full`} />
             )}
-
             <div className="flex gap-2">
-              <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">
-                Salvar
-              </button>
-              <button type="button" onClick={() => { setShowForm(false); setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setIsFleetOwner(false); setDriverName(""); }}
-                className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">
-                Cancelar
-              </button>
+              <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
+              <button type="button" onClick={() => { setShowForm(false); setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm(""); setIsFleetOwner(false); setDriverName(""); }}
+                className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
             </div>
           </form>
         ) : (

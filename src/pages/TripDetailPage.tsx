@@ -15,6 +15,7 @@ import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { exportSingleTripPdf } from "@/lib/exportPdf";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { FinishTripModal } from "@/components/FinishTripModal";
 
 type Tab = "freights" | "fuel" | "expenses";
 
@@ -25,6 +26,7 @@ const TripDetailPage = () => {
   const trip = data.trips.find((t) => t.id === id);
   const [tab, setTab] = useState<Tab>("freights");
   const [showForm, setShowForm] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
 
   if (!trip) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Viagem não encontrada.</div>;
@@ -38,6 +40,12 @@ const TripDetailPage = () => {
   const costKm = getTripCostPerKm(trip);
   const profitKm = getTripProfitPerKm(trip);
   const totalKm = getTripTotalKm(trip);
+
+  const handleFinish = async (km: number) => {
+    await finishTrip(trip.id, km);
+    setShowFinishModal(false);
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -56,7 +64,7 @@ const TripDetailPage = () => {
                 className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
                 <FileDown className="w-4 h-4 text-profit" />
               </button>
-              <button onClick={async () => { await finishTrip(trip.id); navigate("/"); }}
+              <button onClick={() => setShowFinishModal(true)}
                 className="p-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors">
                 <CheckCircle className="w-4 h-4 text-profit" />
               </button>
@@ -107,6 +115,13 @@ const TripDetailPage = () => {
         {tab === "fuel" && <FuelTab trip={trip} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addFueling={addFueling} updateFueling={updateFueling} deleteFueling={deleteFueling} />}
         {tab === "expenses" && <ExpenseTab trip={trip} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addExpense={addExpense} deleteExpense={deleteExpense} />}
       </div>
+
+      <FinishTripModal
+        open={showFinishModal}
+        onClose={() => setShowFinishModal(false)}
+        minKm={vehicle?.currentKm || 0}
+        onConfirm={handleFinish}
+      />
     </div>
   );
 };
@@ -179,33 +194,22 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const startEdit = (f: Fueling) => {
-    setStation(f.stationName);
-    setValue(String(f.totalValue));
-    setLiters(String(f.liters));
-    setKmCur(String(f.kmCurrent));
-    setDate(f.date);
-    setFullTank(f.fullTank ?? true);
-    setEditingId(f.id);
-    setShowForm(true);
+    setStation(f.stationName); setValue(String(f.totalValue)); setLiters(String(f.liters));
+    setKmCur(String(f.kmCurrent)); setDate(f.date); setFullTank(f.fullTank ?? true);
+    setEditingId(f.id); setShowForm(true);
   };
 
   const resetForm = () => {
     setStation(""); setValue(""); setLiters(""); setKmCur("");
-    setDate(new Date().toISOString().slice(0, 10));
-    setFullTank(true);
-    setEditingId(null);
-    setShowForm(false);
+    setDate(new Date().toISOString().slice(0, 10)); setFullTank(true); setEditingId(null); setShowForm(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!station || !value || !liters || !kmCur) return;
     const payload = { stationName: station, totalValue: parseFloat(value), liters: parseFloat(liters), kmCurrent: parseFloat(kmCur), date, fullTank };
-    if (editingId) {
-      updateFueling(trip.id, editingId, payload);
-    } else {
-      addFueling(trip.id, payload);
-    }
+    if (editingId) updateFueling(trip.id, editingId, payload);
+    else addFueling(trip.id, payload);
     resetForm();
   };
 
@@ -217,16 +221,11 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
           <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className={`p-1.5 rounded-md ${isFullTank ? "bg-profit/15" : "bg-warning/15"}`}>
-                {isFullTank
-                  ? <Fuel className="w-4 h-4 text-profit" />
-                  : <Droplets className="w-4 h-4 text-warning" />
-                }
+                {isFullTank ? <Fuel className="w-4 h-4 text-profit" /> : <Droplets className="w-4 h-4 text-warning" />}
               </div>
               <div>
                 <p className="text-sm font-medium">{f.stationName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L
-                </p>
+                <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
                 {isFullTank && f.average > 0 ? (
                   <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>
                 ) : !isFullTank ? (
@@ -257,14 +256,10 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
           </div>
           <div className="flex items-center gap-3 py-1">
             <Switch id="fullTank" checked={fullTank} onCheckedChange={setFullTank} />
-            <Label htmlFor="fullTank" className="text-sm font-medium cursor-pointer">
-              Completou o tanque?
-            </Label>
+            <Label htmlFor="fullTank" className="text-sm font-medium cursor-pointer">Completou o tanque?</Label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">
-              {editingId ? "Atualizar" : "Salvar"}
-            </button>
+            <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">{editingId ? "Atualizar" : "Salvar"}</button>
             <button type="button" onClick={resetForm} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
           </div>
         </form>

@@ -6,6 +6,7 @@ import { TripHistoryList } from "@/components/TripHistoryList";
 import { PeriodFilter } from "@/components/PeriodFilter";
 import { MaintenanceAlerts } from "@/components/MaintenanceAlerts";
 import { NotificationPrompt } from "@/components/NotificationPrompt";
+import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, getTripNetRevenue } from "@/lib/calculations";
 import { getMaintenanceAlerts } from "@/lib/maintenance";
 import { Trip } from "@/types";
@@ -70,10 +71,11 @@ const Dashboard = () => {
       <header className="px-4 pt-6 pb-4">
         <div className="flex items-center gap-3 mb-1">
           <img src={logoImg} alt="Copiloto" className="h-10 w-auto drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-black tracking-tight">Copiloto</h1>
             <p className="text-[10px] text-muted-foreground leading-tight">seu parceiro na gestão de viagem</p>
           </div>
+          <ConnectionIndicator />
         </div>
       </header>
 

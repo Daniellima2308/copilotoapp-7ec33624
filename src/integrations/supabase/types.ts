@@ -21,6 +21,7 @@ export type Database = {
           date: string
           description: string
           id: string
+          receipt_url: string | null
           trip_id: string
           user_id: string
           value: number
@@ -31,6 +32,7 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          receipt_url?: string | null
           trip_id: string
           user_id: string
           value?: number
@@ -41,6 +43,7 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          receipt_url?: string | null
           trip_id?: string
           user_id?: string
           value?: number
@@ -115,6 +118,7 @@ export type Database = {
           km_current: number
           liters: number
           price_per_liter: number
+          receipt_url: string | null
           station: string
           total_value: number
           trip_id: string
@@ -129,6 +133,7 @@ export type Database = {
           km_current?: number
           liters?: number
           price_per_liter?: number
+          receipt_url?: string | null
           station?: string
           total_value?: number
           trip_id: string
@@ -143,6 +148,7 @@ export type Database = {
           km_current?: number
           liters?: number
           price_per_liter?: number
+          receipt_url?: string | null
           station?: string
           total_value?: number
           trip_id?: string
@@ -196,6 +202,47 @@ export type Database = {
           },
         ]
       }
+      personal_expenses: {
+        Row: {
+          category: string
+          created_at: string
+          date: string
+          description: string
+          id: string
+          trip_id: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          trip_id: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          trip_id?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_expenses_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -203,6 +250,7 @@ export type Database = {
           display_name: string | null
           has_seen_tutorial: boolean
           id: string
+          personal_expenses_enabled: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -213,6 +261,7 @@ export type Database = {
           display_name?: string | null
           has_seen_tutorial?: boolean
           id?: string
+          personal_expenses_enabled?: boolean
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -223,6 +272,7 @@ export type Database = {
           display_name?: string | null
           has_seen_tutorial?: boolean
           id?: string
+          personal_expenses_enabled?: boolean
           phone?: string | null
           updated_at?: string
           user_id?: string

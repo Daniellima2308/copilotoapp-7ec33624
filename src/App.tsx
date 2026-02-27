@@ -16,6 +16,7 @@ import FreightAnalysisPage from "./pages/FreightAnalysisPage";
 import HistoryPage from "./pages/HistoryPage";
 import MenuPage from "./pages/MenuPage";
 import MaintenancePage from "./pages/MaintenancePage";
+import PersonalExpensesPage from "./pages/PersonalExpensesPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -37,8 +38,10 @@ function ProtectedApp() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
+          <Route path="/personal-expenses" element={<PersonalExpensesPage />} />
         </Routes>
         <OnboardingTour />
+        <BottomNav />
       </AppProvider>
     </AuthGuard>
   );
@@ -58,7 +61,6 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/*" element={<ProtectedApp />} />
           </Routes>
-          <BottomNav />
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>

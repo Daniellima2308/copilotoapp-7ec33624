@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService } from "@/types";
+import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";
+import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCachedData, getCachedData } from "@/lib/offlineQueue";
+import { toast } from "@/hooks/use-toast";
 
 interface AppContextType {
   data: AppData;
   loading: boolean;
+  personalExpensesEnabled: boolean;
+  setPersonalExpensesEnabled: (v: boolean) => Promise<void>;
   addVehicle: (v: Omit<Vehicle, "id">) => Promise<void>;
   deleteVehicle: (id: string) => Promise<void>;
   updateVehicleKm: (vehicleId: string, km: number) => Promise<void>;
@@ -21,6 +25,8 @@ interface AppContextType {
   deleteFueling: (tripId: string, fuelingId: string) => Promise<void>;
   addExpense: (tripId: string, e: Omit<Expense, "id" | "tripId">) => Promise<void>;
   deleteExpense: (tripId: string, expenseId: string) => Promise<void>;
+  addPersonalExpense: (tripId: string, e: Omit<PersonalExpense, "id" | "tripId">) => Promise<void>;
+  deletePersonalExpense: (tripId: string, id: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   refreshData: () => Promise<void>;
   addMaintenanceService: (s: Omit<MaintenanceService, "id" | "createdAt">) => Promise<void>;
@@ -61,8 +67,9 @@ function calculateFuelingAverage(
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [data, setData] = useState<AppData>({ vehicles: [], trips: [], maintenanceServices: [] });
+  const [data, setData] = useState<AppData>(() => getCachedData<AppData>() || { vehicles: [], trips: [], maintenanceServices: [] });
   const [loading, setLoading] = useState(true);
+  const [personalExpensesEnabled, setPersonalExpensesEnabledState] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) {
@@ -70,15 +77,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(false);
       return;
     }
+
+    if (!isOnline()) {
+      const cached = getCachedData<AppData>();
+      if (cached) setData(cached);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const [vehiclesRes, tripsRes, freightsRes, fuelingsRes, expensesRes, maintRes] = await Promise.all([
+      const [vehiclesRes, tripsRes, freightsRes, fuelingsRes, expensesRes, maintRes, personalExpRes, profileRes] = await Promise.all([
         supabase.from("vehicles").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("trips").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("freights").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("fuelings").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("expenses").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("maintenance_services").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("personal_expenses").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
+        supabase.from("profiles").select("personal_expenses_enabled").eq("user_id", user.id).single(),
       ]);
+
+      if (profileRes.data) {
+        setPersonalExpensesEnabledState((profileRes.data as any).personal_expenses_enabled || false);
+      }
 
       const vehicles: Vehicle[] = (vehiclesRes.data || []).map((v: any) => ({
         id: v.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
@@ -98,7 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (fuelingsRes.data || []).forEach((f: any) => {
         const fueling: Fueling = { id: f.id, tripId: f.trip_id, stationName: f.station, totalValue: f.total_value,
           liters: f.liters, pricePerLiter: f.price_per_liter, kmCurrent: f.km_current, fullTank: f.full_tank,
-          average: f.average, date: f.date };
+          average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined };
         if (!fuelingsMap.has(f.trip_id)) fuelingsMap.set(f.trip_id, []);
         fuelingsMap.get(f.trip_id)!.push(fueling);
       });
@@ -106,15 +127,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const expensesMap = new Map<string, Expense[]>();
       (expensesRes.data || []).forEach((e: any) => {
         const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category,
-          description: e.description, value: e.value, date: e.date };
+          description: e.description, value: e.value, date: e.date, receiptUrl: e.receipt_url || undefined };
         if (!expensesMap.has(e.trip_id)) expensesMap.set(e.trip_id, []);
         expensesMap.get(e.trip_id)!.push(expense);
+      });
+
+      const personalExpMap = new Map<string, PersonalExpense[]>();
+      (personalExpRes.data || []).forEach((pe: any) => {
+        const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category,
+          description: pe.description, value: pe.value, date: pe.date };
+        if (!personalExpMap.has(pe.trip_id)) personalExpMap.set(pe.trip_id, []);
+        personalExpMap.get(pe.trip_id)!.push(item);
       });
 
       const trips: Trip[] = (tripsRes.data || []).map((t: any) => ({
         id: t.id, vehicleId: t.vehicle_id, status: t.status as TripStatus,
         freights: freightsMap.get(t.id) || [], fuelings: fuelingsMap.get(t.id) || [],
-        expenses: expensesMap.get(t.id) || [], createdAt: t.created_at, finishedAt: t.finished_at,
+        expenses: expensesMap.get(t.id) || [], personalExpenses: personalExpMap.get(t.id) || [],
+        createdAt: t.created_at, finishedAt: t.finished_at,
       }));
 
       const maintenanceServices: MaintenanceService[] = (maintRes.data || []).map((s: any) => ({
@@ -122,15 +152,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastChangeKm: s.last_change_km, intervalKm: s.interval_km, createdAt: s.created_at,
       }));
 
-      setData({ vehicles, trips, maintenanceServices });
+      const appData = { vehicles, trips, maintenanceServices };
+      setData(appData);
+      setCachedData(appData);
     } catch (err) {
       console.error("Error fetching data:", err);
+      const cached = getCachedData<AppData>();
+      if (cached) setData(cached);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Sync offline queue when coming back online
+  useEffect(() => {
+    const syncQueue = async () => {
+      const queue = getOfflineQueue();
+      if (queue.length === 0 || !user) return;
+
+      for (const action of queue) {
+        try {
+          switch (action.type) {
+            case "addExpense":
+              await supabase.from("expenses").insert({ ...action.payload, user_id: user.id });
+              break;
+            case "addFueling":
+              await supabase.from("fuelings").insert({ ...action.payload, user_id: user.id });
+              break;
+            case "addPersonalExpense":
+              await supabase.from("personal_expenses").insert({ ...action.payload, user_id: user.id });
+              break;
+            case "finishTrip":
+              await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", action.payload.tripId);
+              if (action.payload.arrivalKm) {
+                await supabase.from("vehicles").update({ current_km: action.payload.arrivalKm }).eq("id", action.payload.vehicleId);
+              }
+              break;
+          }
+          removeFromQueue(action.id);
+        } catch (err) {
+          console.error("Failed to sync action:", action, err);
+        }
+      }
+      toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
+      await fetchData();
+    };
+
+    const handleOnline = () => syncQueue();
+    window.addEventListener("online", handleOnline);
+    // Also try on mount
+    if (isOnline()) syncQueue();
+    return () => window.removeEventListener("online", handleOnline);
+  }, [user, fetchData]);
+
+  const setPersonalExpensesEnabled = useCallback(async (val: boolean) => {
+    if (!user) return;
+    setPersonalExpensesEnabledState(val);
+    await supabase.from("profiles").update({ personal_expenses_enabled: val } as any).eq("user_id", user.id);
+  }, [user]);
 
   const addVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
     if (!user) return;
@@ -148,10 +229,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateVehicleKm = useCallback(async (vehicleId: string, km: number) => {
     const vehicle = data.vehicles.find(v => v.id === vehicleId);
-    if (vehicle && km < vehicle.currentKm) return; // never decrease
+    if (vehicle && km < vehicle.currentKm) return;
     await supabase.from("vehicles").update({ current_km: km }).eq("id", vehicleId);
     await fetchData();
-    // Check maintenance alerts after KM update
     const updatedVehicles = data.vehicles.map(v => v.id === vehicleId ? { ...v, currentKm: km } : v);
     const alerts = getMaintenanceAlerts(updatedVehicles, data.maintenanceServices);
     if (alerts.length > 0) checkAndNotifyMaintenance(alerts);
@@ -164,19 +244,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).select().single();
     if (error || !inserted) throw new Error(error?.message || "Failed to create trip");
     const trip: Trip = { id: inserted.id, vehicleId: inserted.vehicle_id, status: inserted.status as TripStatus,
-      freights: [], fuelings: [], expenses: [], createdAt: inserted.created_at, finishedAt: inserted.finished_at };
+      freights: [], fuelings: [], expenses: [], personalExpenses: [], createdAt: inserted.created_at, finishedAt: inserted.finished_at };
     await fetchData();
     return trip;
   }, [user, fetchData]);
 
   const finishTrip = useCallback(async (id: string, arrivalKm?: number) => {
     const trip = data.trips.find(t => t.id === id);
+
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
     await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", id);
     if (arrivalKm && trip) {
       await supabase.from("vehicles").update({ current_km: arrivalKm }).eq("id", trip.vehicleId);
     }
     await fetchData();
-    // Check maintenance after finishing trip
     if (arrivalKm && trip) {
       const updatedVehicles = data.vehicles.map(v => v.id === trip.vehicleId ? { ...v, currentKm: arrivalKm } : v);
       const alerts = getMaintenanceAlerts(updatedVehicles, data.maintenanceServices);
@@ -209,6 +295,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;
+
+    if (!isOnline()) {
+      const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+      addToOfflineQueue({ type: "addFueling", payload: {
+        trip_id: tripId, station: f.stationName, total_value: f.totalValue,
+        liters: f.liters, price_per_liter: Math.round(pricePerLiter * 100) / 100,
+        km_current: f.kmCurrent, full_tank: f.fullTank, average: 0, date: f.date,
+        receipt_url: f.receiptUrl || null,
+      }});
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
     const trip = data.trips.find(t => t.id === tripId);
     const fuelingIndex = trip ? trip.fuelings.length : 0;
@@ -217,8 +316,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       trip_id: tripId, user_id: user.id, station: f.stationName, total_value: f.totalValue,
       liters: f.liters, price_per_liter: Math.round(pricePerLiter * 100) / 100,
       km_current: f.kmCurrent, full_tank: f.fullTank, average, date: f.date,
+      receipt_url: f.receiptUrl || null,
     });
-    // Update vehicle KM
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     else await fetchData();
   }, [user, data.trips, fetchData, updateVehicleKm]);
@@ -231,7 +330,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from("fuelings").update({
       station: f.stationName, total_value: f.totalValue, liters: f.liters,
       price_per_liter: Math.round(pricePerLiter * 100) / 100, km_current: f.kmCurrent,
-      full_tank: f.fullTank, average, date: f.date,
+      full_tank: f.fullTank, average, date: f.date, receipt_url: f.receiptUrl || null,
     }).eq("id", fuelingId);
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     else await fetchData();
@@ -244,15 +343,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addExpense = useCallback(async (tripId: string, e: Omit<Expense, "id" | "tripId">) => {
     if (!user) return;
+
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "addExpense", payload: {
+        trip_id: tripId, category: e.category, description: e.description,
+        value: e.value, date: e.date, receipt_url: e.receiptUrl || null,
+      }});
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
     await supabase.from("expenses").insert({
       trip_id: tripId, user_id: user.id, category: e.category,
       description: e.description, value: e.value, date: e.date,
+      receipt_url: e.receiptUrl || null,
     });
     await fetchData();
   }, [user, fetchData]);
 
   const deleteExpense = useCallback(async (_tripId: string, expenseId: string) => {
     await supabase.from("expenses").delete().eq("id", expenseId);
+    await fetchData();
+  }, [fetchData]);
+
+  const addPersonalExpense = useCallback(async (tripId: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
+    if (!user) return;
+
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "addPersonalExpense", payload: {
+        trip_id: tripId, category: e.category, description: e.description,
+        value: e.value, date: e.date,
+      }});
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
+    await supabase.from("personal_expenses").insert({
+      trip_id: tripId, user_id: user.id, category: e.category,
+      description: e.description, value: e.value, date: e.date,
+    });
+    await fetchData();
+  }, [user, fetchData]);
+
+  const deletePersonalExpense = useCallback(async (_tripId: string, id: string) => {
+    await supabase.from("personal_expenses").delete().eq("id", id);
     await fetchData();
   }, [fetchData]);
 
@@ -278,8 +412,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
-      data, loading, addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrip,
+      data, loading, personalExpensesEnabled, setPersonalExpensesEnabled,
+      addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrip,
       addFreight, deleteFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense,
+      addPersonalExpense, deletePersonalExpense,
       clearHistory, refreshData: fetchData, addMaintenanceService, deleteMaintenanceService,
     }}>
       {children}

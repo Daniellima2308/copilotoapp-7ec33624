@@ -13,8 +13,12 @@ export function getTripTotalExpenses(trip: Trip): number {
     trip.fuelings.reduce((sum, f) => sum + f.totalValue, 0);
 }
 
+export function getTripTotalPersonalExpenses(trip: Trip): number {
+  return (trip.personalExpenses || []).reduce((sum, e) => sum + e.value, 0);
+}
+
 export function getTripNetRevenue(trip: Trip): number {
-  return getTripGrossRevenue(trip) - getTripTotalCommissions(trip) - getTripTotalExpenses(trip);
+  return getTripGrossRevenue(trip) - getTripTotalCommissions(trip) - getTripTotalExpenses(trip) - getTripTotalPersonalExpenses(trip);
 }
 
 export function getTripTotalKm(trip: Trip): number {

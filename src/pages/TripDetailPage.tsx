@@ -16,6 +16,7 @@ import { exportSingleTripPdf } from "@/lib/exportPdf";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { FinishTripModal } from "@/components/FinishTripModal";
+import { ReceiptUpload } from "@/components/ReceiptUpload";
 
 type Tab = "freights" | "fuel" | "expenses";
 
@@ -61,23 +62,23 @@ const TripDetailPage = () => {
           {isOpen && (
             <div className="flex gap-1.5">
               <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}
-                className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
-                <FileDown className="w-4 h-4 text-profit" />
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary hover:bg-accent transition-colors text-xs font-semibold min-h-[44px]">
+                <FileDown className="w-4 h-4 text-profit" /> <span className="text-profit">PDF</span>
               </button>
               <button onClick={() => setShowFinishModal(true)}
-                className="p-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors">
-                <CheckCircle className="w-4 h-4 text-profit" />
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors text-xs font-semibold min-h-[44px]">
+                <CheckCircle className="w-4 h-4 text-profit" /> <span className="text-profit">Finalizar</span>
               </button>
               <button onClick={async () => { if (confirm("Excluir viagem?")) { await deleteTrip(trip.id); navigate("/"); } }}
-                className="p-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors">
-                <Trash2 className="w-4 h-4 text-expense" />
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors text-xs font-semibold min-h-[44px]">
+                <Trash2 className="w-4 h-4 text-expense" /> <span className="text-expense">Excluir</span>
               </button>
             </div>
           )}
           {!isOpen && (
             <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}
-              className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
-              <FileDown className="w-4 h-4 text-profit" />
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary hover:bg-accent transition-colors text-xs font-semibold min-h-[44px]">
+              <FileDown className="w-4 h-4 text-profit" /> <span className="text-profit">PDF</span>
             </button>
           )}
         </div>
@@ -192,22 +193,24 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [fullTank, setFullTank] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
 
   const startEdit = (f: Fueling) => {
     setStation(f.stationName); setValue(String(f.totalValue)); setLiters(String(f.liters));
     setKmCur(String(f.kmCurrent)); setDate(f.date); setFullTank(f.fullTank ?? true);
+    setReceiptUrl(f.receiptUrl);
     setEditingId(f.id); setShowForm(true);
   };
 
   const resetForm = () => {
     setStation(""); setValue(""); setLiters(""); setKmCur("");
-    setDate(new Date().toISOString().slice(0, 10)); setFullTank(true); setEditingId(null); setShowForm(false);
+    setDate(new Date().toISOString().slice(0, 10)); setFullTank(true); setEditingId(null); setReceiptUrl(undefined); setShowForm(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!station || !value || !liters || !kmCur) return;
-    const payload = { stationName: station, totalValue: parseFloat(value), liters: parseFloat(liters), kmCurrent: parseFloat(kmCur), date, fullTank };
+    const payload = { stationName: station, totalValue: parseFloat(value), liters: parseFloat(liters), kmCurrent: parseFloat(kmCur), date, fullTank, receiptUrl };
     if (editingId) updateFueling(trip.id, editingId, payload);
     else addFueling(trip.id, payload);
     resetForm();
@@ -258,6 +261,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
             <Switch id="fullTank" checked={fullTank} onCheckedChange={setFullTank} />
             <Label htmlFor="fullTank" className="text-sm font-medium cursor-pointer">Completou o tanque?</Label>
           </div>
+          <ReceiptUpload value={receiptUrl} onChange={setReceiptUrl} />
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">{editingId ? "Atualizar" : "Salvar"}</button>
             <button type="button" onClick={resetForm} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
@@ -275,13 +279,14 @@ function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, deleteExp
   const [desc, setDesc] = useState("");
   const [value, setValue] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!value) return;
     const finalDesc = desc.trim() || EXPENSE_CATEGORY_LABELS[cat];
-    addExpense(trip.id, { category: cat, description: finalDesc, value: parseFloat(value), date });
-    setDesc(""); setValue(""); setShowForm(false);
+    addExpense(trip.id, { category: cat, description: finalDesc, value: parseFloat(value), date, receiptUrl });
+    setDesc(""); setValue(""); setReceiptUrl(undefined); setShowForm(false);
   };
 
   return (
@@ -308,9 +313,10 @@ function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, deleteExp
             <input placeholder="Valor (R$)" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
           </div>
+          <ReceiptUpload value={receiptUrl} onChange={setReceiptUrl} />
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
+            <button type="button" onClick={() => { setReceiptUrl(undefined); setShowForm(false); }} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
           </div>
         </form>
       ) : (

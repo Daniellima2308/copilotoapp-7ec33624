@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useApp } from "@/context/AppContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  User, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera, Loader2, Wrench,
+  User, Lock, MessageCircle, Lightbulb, LogOut, ChevronRight, Camera, Loader2, Wrench, Wallet,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 const SUBJECT_OPTIONS = ["Dúvida", "Problema", "Sugestão", "Outros"] as const;
 
 const MenuPage = () => {
   const { user, signOut } = useAuth();
+  const { personalExpensesEnabled, setPersonalExpensesEnabled } = useApp();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null }>({ display_name: null, avatar_url: null });
   const [showContact, setShowContact] = useState(false);
@@ -201,6 +204,23 @@ const MenuPage = () => {
               <ChevronRight className="w-4 h-4 text-warning" />
             </button>
             <p className="text-[10px] text-muted-foreground/60 pl-1">Tem uma ideia para melhorar o app? Clique aqui!</p>
+          </div>
+        </section>
+
+        {/* Preferências do App */}
+        <section>
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Preferências do App</h2>
+          <div className="gradient-card rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Wallet className="w-5 h-5 text-warning shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Controle de Gastos Pessoais</p>
+                  <p className="text-[10px] text-muted-foreground/60 leading-tight">Anote gastos com alimentação, banho e pernoite separados do frete.</p>
+                </div>
+              </div>
+              <Switch checked={personalExpensesEnabled} onCheckedChange={setPersonalExpensesEnabled} />
+            </div>
           </div>
         </section>
 

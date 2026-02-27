@@ -49,6 +49,7 @@ export interface Fueling {
   average: number;
   fullTank: boolean;
   date: string;
+  receiptUrl?: string;
 }
 
 export type ExpenseCategory =
@@ -80,6 +81,30 @@ export interface Expense {
   receiptUrl?: string;
 }
 
+export type PersonalExpenseCategory =
+  | "cafe_lanche"
+  | "almoco_janta"
+  | "banho"
+  | "pernoite"
+  | "outros";
+
+export const PERSONAL_EXPENSE_LABELS: Record<PersonalExpenseCategory, string> = {
+  cafe_lanche: "☕ Café/Lanche",
+  almoco_janta: "🍽️ Almoço/Janta",
+  banho: "🚿 Banho",
+  pernoite: "🛏️ Pernoite",
+  outros: "Outros",
+};
+
+export interface PersonalExpense {
+  id: string;
+  tripId: string;
+  category: PersonalExpenseCategory;
+  description: string;
+  value: number;
+  date: string;
+}
+
 export type TripStatus = "open" | "finished";
 
 export interface Trip {
@@ -89,6 +114,7 @@ export interface Trip {
   freights: Freight[];
   fuelings: Fueling[];
   expenses: Expense[];
+  personalExpenses: PersonalExpense[];
   createdAt: string;
   finishedAt?: string;
 }

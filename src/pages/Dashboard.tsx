@@ -10,6 +10,7 @@ import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, get
 import { getMaintenanceAlerts } from "@/lib/maintenance";
 import { Trip } from "@/types";
 import { Plus, Trash2, FileDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoImg from "@/assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { exportMultipleTripsPdf } from "@/lib/exportPdf";
@@ -30,10 +31,17 @@ function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
 const Dashboard = () => {
   const { data, getActiveTrip, clearHistory, loading } = useApp();
   const [period, setPeriod] = useState("month");
+  const [selectedVehicleId, setSelectedVehicleId] = useState("all");
   const navigate = useNavigate();
 
   const activeTrip = getActiveTrip();
-  const filteredTrips = useMemo(() => filterTripsByPeriod(data.trips, period), [data.trips, period]);
+
+  const vehicleFilteredTrips = useMemo(() => {
+    if (selectedVehicleId === "all") return data.trips;
+    return data.trips.filter(t => t.vehicleId === selectedVehicleId);
+  }, [data.trips, selectedVehicleId]);
+
+  const filteredTrips = useMemo(() => filterTripsByPeriod(vehicleFilteredTrips, period), [vehicleFilteredTrips, period]);
   const maintenanceAlerts = useMemo(() => getMaintenanceAlerts(data.vehicles, data.maintenanceServices), [data.vehicles, data.maintenanceServices]);
 
   const grossRevenue = filteredTrips.reduce((s, t) => s + getTripGrossRevenue(t), 0);
@@ -74,6 +82,21 @@ const Dashboard = () => {
 
         {/* Maintenance Alerts */}
         <MaintenanceAlerts alerts={maintenanceAlerts} />
+
+        {/* Vehicle Filter (only for 2+ vehicles) */}
+        {data.vehicles.length >= 2 && (
+          <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+            <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
+              <SelectValue placeholder="Todos os Veículos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Veículos</SelectItem>
+              {data.vehicles.map(v => (
+                <SelectItem key={v.id} value={v.id}>{v.plate} • {v.brand} {v.model}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {/* Period Filter + Export PDF */}
         <div className="flex items-center gap-2">

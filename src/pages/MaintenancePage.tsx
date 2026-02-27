@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Wrench, Gauge } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Plus, Trash2, Wrench, Gauge, Truck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MaintenanceService } from "@/types";
 import { formatNumber } from "@/lib/calculations";
@@ -22,8 +22,10 @@ const COMMON_SERVICES = [
 const MaintenancePage = () => {
   const { data, addMaintenanceService, deleteMaintenanceService } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialVehicleId = searchParams.get("vehicleId") || data.vehicles[0]?.id || "";
   const [showForm, setShowForm] = useState(false);
-  const [vehicleId, setVehicleId] = useState(data.vehicles[0]?.id || "");
+  const [vehicleId, setVehicleId] = useState(initialVehicleId);
   const [serviceName, setServiceName] = useState("");
   const [customName, setCustomName] = useState("");
   const [lastKm, setLastKm] = useState("");
@@ -46,6 +48,33 @@ const MaintenancePage = () => {
     setShowForm(false);
   };
 
+  // Empty state: no vehicles
+  if (data.vehicles.length === 0) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <header className="px-4 pt-6 pb-4 flex items-center gap-3">
+          <button onClick={() => navigate("/")} className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold">Manutenção</h1>
+        </header>
+        <div className="px-4 flex flex-col items-center justify-center text-center mt-16 space-y-4">
+          <Truck className="w-16 h-16 text-muted-foreground/40" />
+          <h2 className="text-lg font-bold">Acompanhe a saúde do seu bruto! 🚛</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            Aqui o Copiloto te avisa a hora certa de trocar óleo, filtros e lonas de freio, evitando que você fique na mão no trecho e gaste com imprevistos. Para ativar os alertas, você precisa cadastrar o seu primeiro veículo.
+          </p>
+          <button
+            onClick={() => navigate("/vehicles")}
+            className="gradient-profit text-primary-foreground rounded-xl px-6 py-3 font-bold text-sm hover:opacity-90 transition-opacity"
+          >
+            Ir para Frota
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const vehicleServices = data.maintenanceServices.filter(s => s.vehicleId === vehicleId);
   const selectedVehicle = data.vehicles.find(v => v.id === vehicleId);
 
@@ -60,7 +89,7 @@ const MaintenancePage = () => {
 
       <div className="px-4 space-y-4">
         {/* Vehicle selector */}
-        {data.vehicles.length > 0 && (
+        {data.vehicles.length > 1 && (
           <Select value={vehicleId} onValueChange={setVehicleId}>
             <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
               <SelectValue placeholder="Selecione o veículo" />
@@ -77,13 +106,22 @@ const MaintenancePage = () => {
           <div className="gradient-card rounded-xl p-4 flex items-center gap-3">
             <Gauge className="w-5 h-5 text-profit" />
             <div>
-              <p className="text-xs text-muted-foreground">Odômetro Atual</p>
+              <p className="text-xs text-muted-foreground">
+                {selectedVehicle.brand} {selectedVehicle.model} • Odômetro Atual
+              </p>
               <p className="text-lg font-bold font-mono">{formatNumber(selectedVehicle.currentKm)} km</p>
             </div>
           </div>
         )}
 
         {/* Services list */}
+        {vehicleServices.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            <Wrench className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p>Nenhum serviço cadastrado para este veículo.</p>
+          </div>
+        )}
+
         {vehicleServices.map((s: MaintenanceService) => {
           const vehicle = data.vehicles.find(v => v.id === s.vehicleId);
           const kmSince = vehicle ? vehicle.currentKm - s.lastChangeKm : 0;
@@ -123,6 +161,18 @@ const MaintenancePage = () => {
         {/* Add form */}
         {showForm ? (
           <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
+            {data.vehicles.length > 1 && (
+              <Select value={vehicleId} onValueChange={setVehicleId}>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
+                  <SelectValue placeholder="Veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.vehicles.map(v => (
+                    <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} - {v.plate}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={serviceName} onValueChange={setServiceName}>
               <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
                 <SelectValue placeholder="Tipo de Serviço" />

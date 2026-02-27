@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Truck, User } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -74,10 +74,16 @@ const VehiclesPage = () => {
                 )}
               </div>
             </div>
-            <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
-              className="p-2 rounded-lg hover:bg-expense/10 transition-colors">
-              <Trash2 className="w-4 h-4 text-expense" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => navigate(`/maintenance?vehicleId=${v.id}`)}
+                className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
+                <Wrench className="w-4 h-4 text-muted-foreground" />
+              </button>
+              <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
+                className="p-2 rounded-lg hover:bg-expense/10 transition-colors">
+                <Trash2 className="w-4 h-4 text-expense" />
+              </button>
+            </div>
           </div>
         ))}
 

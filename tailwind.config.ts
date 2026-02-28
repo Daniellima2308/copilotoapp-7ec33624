@@ -77,6 +77,10 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "px-orange": {
+          DEFAULT: "hsl(var(--px-orange))",
+          foreground: "hsl(var(--px-orange-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

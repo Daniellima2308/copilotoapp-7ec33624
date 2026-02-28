@@ -202,6 +202,65 @@ export type Database = {
           },
         ]
       }
+      mural_likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mural_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "mural_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mural_posts: {
+        Row: {
+          caption: string
+          created_at: string
+          display_name: string
+          id: string
+          image_url: string
+          likes: number
+          user_id: string
+        }
+        Insert: {
+          caption?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          image_url: string
+          likes?: number
+          user_id: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          image_url?: string
+          likes?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       personal_expenses: {
         Row: {
           category: string
@@ -278,6 +337,71 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      px_channels: {
+        Row: {
+          created_at: string
+          creator_id: string | null
+          expires_at: string | null
+          id: string
+          name: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id?: string | null
+          expires_at?: string | null
+          id?: string
+          name: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string | null
+          expires_at?: string | null
+          id?: string
+          name?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      px_messages: {
+        Row: {
+          audio_url: string | null
+          channel_id: string
+          created_at: string
+          display_name: string
+          id: string
+          text: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          channel_id: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          text?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          channel_id?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          text?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "px_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "px_channels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suggestions: {
         Row: {

@@ -11,6 +11,7 @@ import { getTripGrossRevenue, getTripTotalCommissions, getTripTotalExpenses, get
 import { getMaintenanceAlerts } from "@/lib/maintenance";
 import { Trip } from "@/types";
 import { Plus, Trash2, FileDown } from "lucide-react";
+import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import logoImg from "@/assets/logo.png";
 import { useNavigate } from "react-router-dom";
@@ -76,6 +77,7 @@ const Dashboard = () => {
             <p className="text-[10px] text-muted-foreground leading-tight">seu parceiro na gestão de viagem</p>
           </div>
           <ConnectionIndicator />
+          <HamburgerMenu />
         </div>
       </header>
 

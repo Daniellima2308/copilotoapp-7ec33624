@@ -17,6 +17,8 @@ import HistoryPage from "./pages/HistoryPage";
 import MenuPage from "./pages/MenuPage";
 import MaintenancePage from "./pages/MaintenancePage";
 import PersonalExpensesPage from "./pages/PersonalExpensesPage";
+import PXDigitalPage from "./pages/PXDigitalPage";
+import PXInvitePage from "./pages/PXInvitePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -39,6 +41,8 @@ function ProtectedApp() {
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="/personal-expenses" element={<PersonalExpensesPage />} />
+          <Route path="/px" element={<PXDigitalPage />} />
+          <Route path="/px/convite/:channelId" element={<PXInvitePage />} />
         </Routes>
         <OnboardingTour />
         <BottomNav />

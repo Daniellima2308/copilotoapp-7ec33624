@@ -340,27 +340,33 @@ export type Database = {
       }
       px_channels: {
         Row: {
+          category: string
           created_at: string
           creator_id: string | null
           expires_at: string | null
           id: string
           name: string
+          region: string | null
           type: string
         }
         Insert: {
+          category?: string
           created_at?: string
           creator_id?: string | null
           expires_at?: string | null
           id?: string
           name: string
+          region?: string | null
           type?: string
         }
         Update: {
+          category?: string
           created_at?: string
           creator_id?: string | null
           expires_at?: string | null
           id?: string
           name?: string
+          region?: string | null
           type?: string
         }
         Relationships: []

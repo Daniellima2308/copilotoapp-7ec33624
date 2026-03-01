@@ -81,6 +81,23 @@ export default {
           DEFAULT: "hsl(var(--px-orange))",
           foreground: "hsl(var(--px-orange-foreground))",
         },
+        "radio-panel": {
+          DEFAULT: "hsl(var(--radio-panel))",
+          light: "hsl(var(--radio-panel-light))",
+        },
+        "radio-display": {
+          DEFAULT: "hsl(var(--radio-display))",
+          bg: "hsl(var(--radio-display-bg))",
+        },
+        "radio-led": {
+          on: "hsl(var(--radio-led-on))",
+          off: "hsl(var(--radio-led-off))",
+        },
+        "radio-knob": {
+          DEFAULT: "hsl(var(--radio-knob))",
+          ring: "hsl(var(--radio-knob-ring))",
+        },
+        "radio-tx": "hsl(var(--radio-tx))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -100,11 +117,21 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.7" },
         },
+        "radio-wave": {
+          "0%": { transform: "scale(1)", opacity: "0.6" },
+          "100%": { transform: "scale(2.5)", opacity: "0" },
+        },
+        "led-blink": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.3" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "radio-wave": "radio-wave 1s ease-out infinite",
+        "led-blink": "led-blink 0.5s ease-in-out infinite",
       },
     },
   },

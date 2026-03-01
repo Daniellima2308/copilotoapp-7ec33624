@@ -56,6 +56,16 @@
 
     --px-orange: 24 100% 50%;
     --px-orange-foreground: 0 0% 100%;
+
+    --radio-panel: 220 15% 8%;
+    --radio-panel-light: 220 12% 12%;
+    --radio-display: 30 100% 50%;
+    --radio-display-bg: 220 20% 5%;
+    --radio-led-on: 142 80% 50%;
+    --radio-led-off: 220 10% 25%;
+    --radio-knob: 220 10% 20%;
+    --radio-knob-ring: 220 8% 30%;
+    --radio-tx: 0 80% 55%;
   }
 }
 

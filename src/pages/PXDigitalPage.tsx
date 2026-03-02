@@ -248,14 +248,14 @@ const PXDigitalPage = () => {
 
   return (
     <div
-      className="min-h-screen pb-24 flex flex-col"
+      className="h-screen flex flex-col overflow-hidden"
       style={{
         background:
           "linear-gradient(180deg, hsl(220 18% 7%) 0%, hsl(220 20% 5%) 100%)",
       }}
     >
-      {/* Header */}
-      <header className="px-4 pt-5 pb-2">
+      {/* Header — fixed */}
+      <header className="flex-shrink-0 px-4 pt-5 pb-2">
         <div className="flex items-center gap-3">
           <img src={logoImg} alt="Copiloto" className="h-8 w-auto opacity-80" />
           <div className="flex-1">
@@ -271,37 +271,37 @@ const PXDigitalPage = () => {
         </div>
       </header>
 
-      {/* Mode Toggle */}
-      <ModeToggle mode={mode} onChange={setMode} />
+      {/* Mode Toggle — fixed */}
+      <div className="flex-shrink-0">
+        <ModeToggle mode={mode} onChange={setMode} />
+      </div>
 
       {mode === "radio" ? (
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Display */}
-          <RadioDisplay
-            categoryLabel={categoryLabel}
-            channelName={activeChannel?.name || "SEM CANAL"}
-            onlineCount={0}
-            isTransmitting={recording}
-          />
-
-          {/* LEDs */}
-          <RadioLEDs active={ledCategory} onChange={setLedCategory} />
-
-          {/* Knob */}
-          {filteredChannels.length > 0 && (
-            <RadioKnob
-              totalPositions={filteredChannels.length}
-              currentPosition={knobPosition}
-              onPositionChange={setKnobPosition}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Radio panel — sticky top, never scrolls */}
+          <div className="flex-shrink-0">
+            <RadioDisplay
+              categoryLabel={categoryLabel}
+              channelName={activeChannel?.name || "SEM CANAL"}
+              onlineCount={0}
+              isTransmitting={recording}
             />
-          )}
+            <RadioLEDs active={ledCategory} onChange={setLedCategory} />
+            {filteredChannels.length > 0 && (
+              <RadioKnob
+                totalPositions={filteredChannels.length}
+                currentPosition={knobPosition}
+                onPositionChange={setKnobPosition}
+              />
+            )}
+          </div>
 
-          {/* Messages */}
+          {/* Messages — independent scrollable area */}
           <RadioMessages messages={messages} currentUserId={user?.id} />
 
-          {/* Input + PTT */}
+          {/* Input + PTT — fixed bottom */}
           <div
-            className="px-3 py-2 flex items-center gap-2"
+            className="flex-shrink-0 px-3 py-2 flex items-center gap-2"
             style={{
               background: "hsl(220 15% 6%)",
               borderTop: "1px solid hsl(220 12% 12%)",

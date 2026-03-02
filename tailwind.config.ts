@@ -125,6 +125,10 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.3" },
         },
+        "ptt-pulse": {
+          "0%, 100%": { boxShadow: "0 0 25px hsl(0 80% 50% / 0.4), 0 6px 20px rgba(0,0,0,0.5)" },
+          "50%": { boxShadow: "0 0 35px hsl(0 80% 50% / 0.6), 0 6px 25px rgba(0,0,0,0.5)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",

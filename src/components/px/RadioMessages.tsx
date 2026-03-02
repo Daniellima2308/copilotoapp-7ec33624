@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import AudioPlayer from "./AudioPlayer";
 
 interface Message {
   id: string;
@@ -67,12 +68,7 @@ const RadioMessages = ({ messages, currentUserId }: RadioMessagesProps) => {
                 </p>
               )}
               {msg.audio_url && (
-                <audio
-                  controls
-                  src={msg.audio_url}
-                  className="w-full max-w-[200px] h-7"
-                  style={{ filter: "sepia(0.3) hue-rotate(-10deg)" }}
-                />
+                <AudioPlayer src={msg.audio_url} isMe={isMe} />
               )}
               <p
                 className="text-[8px] font-mono text-right"

@@ -120,10 +120,12 @@ const PXDigitalPage = () => {
       return;
     }
     const fetchMessages = async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("px_messages")
         .select("*")
         .eq("channel_id", activeChannel.id)
+        .gte("created_at", twoHoursAgo)
         .order("created_at", { ascending: true })
         .limit(100);
       if (data) setMessages(data as PxMessage[]);
@@ -151,12 +153,17 @@ const PXDigitalPage = () => {
     };
   }, [activeChannel?.id]);
 
-  // Fetch mural posts
+  // Fetch mural posts (today only) + realtime
   useEffect(() => {
     if (mode !== "feed") return;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayISO = todayStart.toISOString();
+
     supabase
       .from("mural_posts")
       .select("*")
+      .gte("created_at", todayISO)
       .order("created_at", { ascending: false })
       .limit(50)
       .then(({ data }) => {
@@ -171,6 +178,31 @@ const PXDigitalPage = () => {
           if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)));
         });
     }
+
+    // Realtime subscription for new mural posts
+    const muralChannel = supabase
+      .channel("mural-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "mural_posts" },
+        (payload) => {
+          setMuralPosts((prev) => [payload.new as MuralPost, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "mural_posts" },
+        (payload) => {
+          setMuralPosts((prev) =>
+            prev.map((p) => (p.id === (payload.new as MuralPost).id ? (payload.new as MuralPost) : p))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(muralChannel);
+    };
   }, [mode, user]);
 
   // Send text message

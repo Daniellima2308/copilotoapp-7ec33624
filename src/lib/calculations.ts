@@ -36,15 +36,22 @@ export function getTripAverageConsumption(trip: Trip): number {
   return Math.round((avgSum / fullTankFuelings.length) * 100) / 100;
 }
 
+export function getEffectiveKm(trip: Trip): { km: number; isEstimate: boolean } {
+  const actual = getTripTotalKm(trip);
+  if (actual > 0) return { km: actual, isEstimate: false };
+  if (trip.estimatedDistance > 0) return { km: trip.estimatedDistance, isEstimate: true };
+  return { km: 0, isEstimate: false };
+}
+
 export function getTripCostPerKm(trip: Trip): number {
-  const km = getTripTotalKm(trip);
+  const { km } = getEffectiveKm(trip);
   if (km === 0) return 0;
   const totalCost = getTripTotalExpenses(trip) + getTripTotalCommissions(trip);
   return Math.round((totalCost / km) * 100) / 100;
 }
 
 export function getTripProfitPerKm(trip: Trip): number {
-  const km = getTripTotalKm(trip);
+  const { km } = getEffectiveKm(trip);
   if (km === 0) return 0;
   return Math.round((getTripNetRevenue(trip) / km) * 100) / 100;
 }

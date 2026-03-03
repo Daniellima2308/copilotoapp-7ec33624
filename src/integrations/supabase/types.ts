@@ -454,6 +454,7 @@ export type Database = {
       trips: {
         Row: {
           created_at: string
+          estimated_distance: number
           finished_at: string | null
           id: string
           status: string
@@ -462,6 +463,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          estimated_distance?: number
           finished_at?: string | null
           id?: string
           status?: string
@@ -470,6 +472,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          estimated_distance?: number
           finished_at?: string | null
           id?: string
           status?: string

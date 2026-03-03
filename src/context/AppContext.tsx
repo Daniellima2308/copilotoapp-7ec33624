@@ -145,6 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         freights: freightsMap.get(t.id) || [], fuelings: fuelingsMap.get(t.id) || [],
         expenses: expensesMap.get(t.id) || [], personalExpenses: personalExpMap.get(t.id) || [],
         createdAt: t.created_at, finishedAt: t.finished_at,
+        estimatedDistance: t.estimated_distance || 0,
       }));
 
       const maintenanceServices: MaintenanceService[] = (maintRes.data || []).map((s: any) => ({
@@ -244,7 +245,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).select().single();
     if (error || !inserted) throw new Error(error?.message || "Failed to create trip");
     const trip: Trip = { id: inserted.id, vehicleId: inserted.vehicle_id, status: inserted.status as TripStatus,
-      freights: [], fuelings: [], expenses: [], personalExpenses: [], createdAt: inserted.created_at, finishedAt: inserted.finished_at };
+      freights: [], fuelings: [], expenses: [], personalExpenses: [], createdAt: inserted.created_at, finishedAt: inserted.finished_at,
+      estimatedDistance: (inserted as any).estimated_distance || 0 };
     await fetchData();
     return trip;
   }, [user, fetchData]);
@@ -285,6 +287,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
       commission_percent: f.commissionPercent, commission_value: commissionValue,
     });
+    // Recalculate estimated distance from all freights of this trip
+    try {
+      const { getRouteDistance } = await import("@/lib/routeApi");
+      const trip = data.trips.find(t => t.id === tripId);
+      const allFreights = [...(trip?.freights || []), { origin: f.origin, destination: f.destination }];
+      const distances = await Promise.all(allFreights.map(fr => getRouteDistance(fr.origin, fr.destination)));
+      const totalEstimated = distances.reduce((sum, d) => sum + (d || 0), 0);
+      if (totalEstimated > 0) {
+        await supabase.from("trips").update({ estimated_distance: totalEstimated }).eq("id", tripId);
+      }
+    } catch (err) {
+      console.warn("Could not calculate estimated distance:", err);
+    }
     await fetchData();
   }, [user, fetchData]);
 

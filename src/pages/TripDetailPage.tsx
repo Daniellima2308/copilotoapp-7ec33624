@@ -4,7 +4,7 @@ import { useApp } from "@/context/AppContext";
 import {
   getTripGrossRevenue, getTripNetRevenue, getTripTotalExpenses, getTripTotalCommissions,
   getTripAverageConsumption, getTripCostPerKm, getTripProfitPerKm, getTripTotalKm,
-  formatCurrency, formatNumber, formatDate,
+  formatCurrency, formatNumber, formatDate, getEffectiveKm,
 } from "@/lib/calculations";
 import { EXPENSE_CATEGORY_LABELS, ExpenseCategory, Fueling } from "@/types";
 import {
@@ -41,6 +41,7 @@ const TripDetailPage = () => {
   const costKm = getTripCostPerKm(trip);
   const profitKm = getTripProfitPerKm(trip);
   const totalKm = getTripTotalKm(trip);
+  const effectiveKm = getEffectiveKm(trip);
 
   const handleFinish = async (km: number) => {
     await finishTrip(trip.id, km);
@@ -85,11 +86,17 @@ const TripDetailPage = () => {
       </header>
 
       <div className="px-4 space-y-4">
+        {trip.estimatedDistance > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+            <span>🛣️</span>
+            <span>Rota Prevista: <span className="font-semibold">{formatNumber(trip.estimatedDistance)} km</span></span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <MetricCard label="Bruto" value={formatCurrency(gross)} icon={<DollarSign className="w-4 h-4" />} />
           <MetricCard label="Líquido" value={formatCurrency(net)} icon={<TrendingUp className="w-4 h-4" />} valueClass={net >= 0 ? "text-profit" : "text-expense"} />
-          <MetricCard label="Lucro/KM" value={`R$ ${formatNumber(profitKm)}`} icon={<TrendingUp className="w-4 h-4" />} valueClass="text-profit" />
-          <MetricCard label="Custo/KM" value={`R$ ${formatNumber(costKm)}`} icon={<TrendingDown className="w-4 h-4" />} valueClass="text-expense" />
+          <MetricCard label="Lucro/KM" value={`R$ ${formatNumber(profitKm)}`} icon={<TrendingUp className="w-4 h-4" />} valueClass="text-profit" subtitle={effectiveKm.isEstimate ? "(Estimativa)" : undefined} />
+          <MetricCard label="Custo/KM" value={`R$ ${formatNumber(costKm)}`} icon={<TrendingDown className="w-4 h-4" />} valueClass="text-expense" subtitle={effectiveKm.isEstimate ? "(Estimativa)" : undefined} />
         </div>
 
         {avgConsumption > 0 && (
@@ -127,11 +134,12 @@ const TripDetailPage = () => {
   );
 };
 
-function MetricCard({ label, value, icon, valueClass = "text-foreground" }: { label: string; value: string; icon: React.ReactNode; valueClass?: string }) {
+function MetricCard({ label, value, icon, valueClass = "text-foreground", subtitle }: { label: string; value: string; icon: React.ReactNode; valueClass?: string; subtitle?: string }) {
   return (
     <div className="gradient-card rounded-lg p-3">
       <div className="flex items-center gap-1.5 mb-1 text-muted-foreground">{icon}<span className="text-[10px] uppercase tracking-wider font-semibold">{label}</span></div>
       <p className={`text-lg font-bold font-mono ${valueClass}`}>{value}</p>
+      {subtitle && <p className="text-[10px] italic text-muted-foreground">{subtitle}</p>}
     </div>
   );
 }
@@ -229,11 +237,20 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
               <div>
                 <p className="text-sm font-medium">{f.stationName}</p>
                 <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
-                {isFullTank && f.average > 0 ? (
-                  <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>
-                ) : !isFullTank ? (
-                  <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>
-                ) : null}
+                {(() => {
+                  const firstKm = trip.freights[0]?.kmInitial ?? 0;
+                  const isInitialFueling = firstKm > 0 && f.kmCurrent === firstKm;
+                  if (isInitialFueling) {
+                    return <p className="text-xs italic text-muted-foreground">Tanque Inicial</p>;
+                  }
+                  if (isFullTank && f.average > 0) {
+                    return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
+                  }
+                  if (!isFullTank) {
+                    return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
+                  }
+                  return null;
+                })()}
               </div>
             </div>
             <div className="flex items-center gap-2">

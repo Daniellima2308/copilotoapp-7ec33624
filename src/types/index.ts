@@ -117,6 +117,7 @@ export interface Trip {
   personalExpenses: PersonalExpense[];
   createdAt: string;
   finishedAt?: string;
+  estimatedDistance: number;
 }
 
 export interface AppData {

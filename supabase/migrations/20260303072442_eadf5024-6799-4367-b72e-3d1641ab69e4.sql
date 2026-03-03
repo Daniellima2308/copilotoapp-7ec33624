@@ -1,0 +1,1 @@
+ALTER TABLE public.trips ADD COLUMN estimated_distance double precision NOT NULL DEFAULT 0;

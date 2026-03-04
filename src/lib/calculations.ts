@@ -23,9 +23,13 @@ export function getTripNetRevenue(trip: Trip): number {
 
 export function getTripTotalKm(trip: Trip): number {
   if (trip.fuelings.length === 0) return 0;
-  const firstKm = trip.freights[0]?.kmInitial ?? 0;
-  const lastKm = trip.fuelings[trip.fuelings.length - 1]?.kmCurrent ?? 0;
-  return lastKm - firstKm;
+  const fuelingKms = trip.fuelings.map(f => f.kmCurrent);
+  const freightKms = trip.freights.map(f => f.kmInitial).filter(k => k > 0);
+  const allStartKms = [...fuelingKms.slice(0, 1), ...freightKms];
+  const startKm = allStartKms.length > 0 ? Math.min(...allStartKms) : 0;
+  const endKm = Math.max(...fuelingKms);
+  const total = endKm - startKm;
+  return total > 0 ? total : 0;
 }
 
 export function getTripAverageConsumption(trip: Trip): number {

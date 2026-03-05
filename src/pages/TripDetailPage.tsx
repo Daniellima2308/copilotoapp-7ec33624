@@ -89,7 +89,7 @@ const TripDetailPage = () => {
         {trip.estimatedDistance > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
             <span>🛣️</span>
-            <span>Rota Prevista: <span className="font-semibold">{formatNumber(trip.estimatedDistance)} km</span></span>
+            <span>KM Total da Viagem: <span className="font-semibold">{formatNumber(trip.estimatedDistance)} km</span></span>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -238,19 +238,35 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
                 <p className="text-sm font-medium">{f.stationName}</p>
                 <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
                 {(() => {
-                  const firstKm = trip.freights[0]?.kmInitial ?? 0;
-                  const isInitialFueling = firstKm > 0 && f.kmCurrent === firstKm;
-                  if (isInitialFueling) {
-                    return <p className="text-xs italic text-muted-foreground">Tanque Inicial</p>;
-                  }
-                  if (isFullTank && f.average > 0) {
-                    return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
-                  }
-                  if (!isFullTank) {
-                    return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
-                  }
-                  return null;
-                })()}
+                   const freightKms = trip.freights.map((fr: any) => fr.kmInitial).filter((k: number) => k > 0);
+                   const firstFuelingKm = trip.fuelings[0]?.kmCurrent ?? f.kmCurrent;
+                   const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
+                   const fIdx = trip.fuelings.findIndex((fu: Fueling) => fu.id === f.id);
+                   const isInitialFueling = fIdx === 0 || f.kmCurrent === tripStartKm;
+                   if (isInitialFueling && f.average > 0) {
+                     return (
+                       <p className="text-xs font-semibold text-profit flex items-center gap-1">
+                         Média: {formatNumber(f.average)} km/l
+                         <span title="Média calculada com base no último abastecimento da viagem anterior" className="cursor-help">ℹ️</span>
+                       </p>
+                     );
+                   }
+                   if (isInitialFueling && f.average === 0) {
+                     return (
+                       <div>
+                         <p className="text-xs font-semibold text-blue-400">Marco Zero</p>
+                         <p className="text-[10px] italic text-muted-foreground">A média será calculada no próximo abastecimento</p>
+                       </div>
+                     );
+                   }
+                   if (isFullTank && f.average > 0) {
+                     return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
+                   }
+                   if (!isFullTank) {
+                     return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
+                   }
+                   return null;
+                 })()}
               </div>
             </div>
             <div className="flex items-center gap-2">

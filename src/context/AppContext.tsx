@@ -17,7 +17,7 @@ interface AppContextType {
   addTrip: (vehicleId: string) => Promise<Trip>;
   finishTrip: (id: string, arrivalKm?: number) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
-  getActiveTrip: () => Trip | undefined;
+  getActiveTrips: () => Trip[];
   addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   addFueling: (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
@@ -94,6 +94,35 @@ async function calculateFuelingAverage(
   const distance = fueling.kmCurrent - lastFullTankKm;
   if (totalLiters === 0 || distance <= 0) return 0;
   return Math.round((distance / totalLiters) * 100) / 100;
+}
+
+async function recalculateVehicleKm(vehicleId: string) {
+  const { data: vehicleTrips } = await supabase
+    .from("trips").select("id").eq("vehicle_id", vehicleId);
+  const tripIds = (vehicleTrips || []).map(t => t.id);
+
+  if (tripIds.length === 0) {
+    // No trips left — we can't determine original KM, leave as-is
+    return;
+  }
+
+  const { data: fuelings } = await supabase
+    .from("fuelings").select("km_current")
+    .in("trip_id", tripIds)
+    .order("km_current", { ascending: false }).limit(1);
+
+  const { data: freights } = await supabase
+    .from("freights").select("km_initial")
+    .in("trip_id", tripIds)
+    .order("km_initial", { ascending: false }).limit(1);
+
+  const maxFuelingKm = fuelings?.[0]?.km_current || 0;
+  const maxFreightKm = freights?.[0]?.km_initial || 0;
+  const maxKm = Math.max(maxFuelingKm, maxFreightKm);
+
+  if (maxKm > 0) {
+    await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
+  }
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -234,7 +263,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handleOnline = () => syncQueue();
     window.addEventListener("online", handleOnline);
-    // Also try on mount
     if (isOnline()) syncQueue();
     return () => window.removeEventListener("online", handleOnline);
   }, [user, fetchData]);
@@ -271,6 +299,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addTrip = useCallback(async (vehicleId: string): Promise<Trip> => {
     if (!user) throw new Error("Not authenticated");
+    // Check if this vehicle already has an active trip
+    const existingActive = data.trips.find(t => t.vehicleId === vehicleId && t.status === "open");
+    if (existingActive) throw new Error("Este veículo já possui uma viagem em andamento.");
     const { data: inserted, error } = await supabase.from("trips").insert({
       user_id: user.id, vehicle_id: vehicleId, status: "open",
     }).select().single();
@@ -280,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       estimatedDistance: (inserted as any).estimated_distance || 0 };
     await fetchData();
     return trip;
-  }, [user, fetchData]);
+  }, [user, data.trips, fetchData]);
 
   const finishTrip = useCallback(async (id: string, arrivalKm?: number) => {
     const trip = data.trips.find(t => t.id === id);
@@ -304,11 +335,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [data.trips, data.vehicles, data.maintenanceServices, fetchData]);
 
   const deleteTrip = useCallback(async (id: string) => {
+    const trip = data.trips.find(t => t.id === id);
+    const vehicleId = trip?.vehicleId;
     await supabase.from("trips").delete().eq("id", id);
+    if (vehicleId) {
+      await recalculateVehicleKm(vehicleId);
+    }
     await fetchData();
-  }, [fetchData]);
+  }, [data.trips, fetchData]);
 
-  const getActiveTrip = useCallback(() => data.trips.find(t => t.status === "open"), [data.trips]);
+  const getActiveTrips = useCallback(() => data.trips.filter(t => t.status === "open"), [data.trips]);
 
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
@@ -318,9 +354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
       commission_percent: f.commissionPercent, commission_value: commissionValue,
     });
-    // Fetch fresh data first so we have updated freights list
     await fetchData();
-    // Recalculate estimated distance from all freights of this trip (query DB directly)
     try {
       const { getRouteDistance } = await import("@/lib/routeApi");
       const { data: dbFreights } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
@@ -336,7 +370,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
     await supabase.from("freights").delete().eq("id", freightId);
-    // Recalculate estimated distance after deletion (query DB directly for fresh data)
     try {
       const { getRouteDistance } = await import("@/lib/routeApi");
       const { data: remaining } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
@@ -398,10 +431,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else await fetchData();
   }, [data.trips, fetchData, updateVehicleKm]);
 
-  const deleteFueling = useCallback(async (_tripId: string, fuelingId: string) => {
+  const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
+    // Find the trip to get vehicle ID before deleting
+    const trip = data.trips.find(t => t.id === tripId);
+    const vehicleId = trip?.vehicleId;
     await supabase.from("fuelings").delete().eq("id", fuelingId);
+    if (vehicleId) {
+      await recalculateVehicleKm(vehicleId);
+    }
     await fetchData();
-  }, [fetchData]);
+  }, [data.trips, fetchData]);
 
   const addExpense = useCallback(async (tripId: string, e: Omit<Expense, "id" | "tripId">) => {
     if (!user) return;
@@ -475,7 +514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       data, loading, personalExpensesEnabled, setPersonalExpensesEnabled,
-      addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrip,
+      addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
       addFreight, deleteFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense,
       addPersonalExpense, deletePersonalExpense,
       clearHistory, refreshData: fetchData, addMaintenanceService, deleteMaintenanceService,

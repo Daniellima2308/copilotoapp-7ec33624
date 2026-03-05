@@ -31,19 +31,23 @@ function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
 }
 
 const Dashboard = () => {
-  const { data, getActiveTrip, clearHistory, loading } = useApp();
+  const { data, getActiveTrips, clearHistory, loading } = useApp();
   const [period, setPeriod] = useState("month");
   const [selectedVehicleId, setSelectedVehicleId] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "finished">("all");
   const navigate = useNavigate();
-
-  const activeTrip = getActiveTrip();
 
   const vehicleFilteredTrips = useMemo(() => {
     if (selectedVehicleId === "all") return data.trips;
     return data.trips.filter(t => t.vehicleId === selectedVehicleId);
   }, [data.trips, selectedVehicleId]);
 
-  const filteredTrips = useMemo(() => filterTripsByPeriod(vehicleFilteredTrips, period), [vehicleFilteredTrips, period]);
+  const statusFilteredTrips = useMemo(() => {
+    if (statusFilter === "all") return vehicleFilteredTrips;
+    return vehicleFilteredTrips.filter(t => t.status === statusFilter);
+  }, [vehicleFilteredTrips, statusFilter]);
+
+  const filteredTrips = useMemo(() => filterTripsByPeriod(statusFilteredTrips, period), [statusFilteredTrips, period]);
   const maintenanceAlerts = useMemo(() => getMaintenanceAlerts(data.vehicles, data.maintenanceServices), [data.vehicles, data.maintenanceServices]);
 
   const grossRevenue = filteredTrips.reduce((s, t) => s + getTripGrossRevenue(t), 0);
@@ -51,12 +55,12 @@ const Dashboard = () => {
   const totalExpenses = filteredTrips.reduce((s, t) => s + getTripTotalExpenses(t), 0);
   const netRevenue = filteredTrips.reduce((s, t) => s + getTripNetRevenue(t), 0);
 
-  const finishedTrips = filteredTrips.filter((t) => t.status === "finished");
+  const activeTripsInView = filteredTrips.filter(t => t.status === "open");
+  const finishedTripsInView = filteredTrips.filter(t => t.status === "finished");
 
   const handleNewTrip = () => {
-    if (activeTrip) { alert("Finalize a viagem ativa antes de iniciar uma nova."); return; }
     if (data.vehicles.length === 0) { navigate("/vehicles"); return; }
-    navigate("/new-trip");
+    navigate("/new-trip", { state: { preSelectedVehicleId: selectedVehicleId !== "all" ? selectedVehicleId : undefined } });
   };
 
   if (loading) {
@@ -84,10 +88,8 @@ const Dashboard = () => {
       <div className="px-4 space-y-5">
         <NotificationPrompt />
 
-        {/* Maintenance Alerts */}
         <MaintenanceAlerts alerts={maintenanceAlerts} />
 
-        {/* Vehicle Filter (only for 2+ vehicles) */}
         {data.vehicles.length >= 2 && (
           <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
             <SelectTrigger className="bg-secondary border-none text-sm h-[42px]">
@@ -101,6 +103,27 @@ const Dashboard = () => {
             </SelectContent>
           </Select>
         )}
+
+        {/* Status Filter - Segmented Control */}
+        <div className="flex rounded-lg bg-secondary p-1 gap-1">
+          {([
+            { value: "all", label: "Todas" },
+            { value: "open", label: "Em Andamento" },
+            { value: "finished", label: "Finalizadas" },
+          ] as const).map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setStatusFilter(opt.value)}
+              className={`flex-1 text-xs font-semibold py-2 rounded-md transition-colors ${
+                statusFilter === opt.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
 
         {/* Period Filter + Export PDF */}
         <div className="flex items-center gap-2">
@@ -120,29 +143,38 @@ const Dashboard = () => {
 
         <SummaryCards grossRevenue={grossRevenue} netRevenue={netRevenue} totalExpenses={totalExpenses} totalCommissions={totalCommissions} />
 
-        {activeTrip && <section><ActiveTripCard trip={activeTrip} /></section>}
+        {/* Nova Viagem button - always visible */}
+        <button onClick={handleNewTrip}
+          className="w-full gradient-profit text-primary-foreground rounded-xl p-4 flex items-center justify-center gap-2 font-bold text-sm hover:opacity-90 transition-opacity">
+          <Plus className="w-5 h-5" /> Nova Viagem
+        </button>
 
-        {!activeTrip && (
-          <button onClick={handleNewTrip}
-            className="w-full gradient-profit text-primary-foreground rounded-xl p-4 flex items-center justify-center gap-2 font-bold text-sm hover:opacity-90 transition-opacity">
-            <Plus className="w-5 h-5" /> Nova Viagem
-          </button>
+        {/* Active trips */}
+        {activeTripsInView.length > 0 && (
+          <section className="space-y-3">
+            {activeTripsInView.map(trip => (
+              <ActiveTripCard key={trip.id} trip={trip} />
+            ))}
+          </section>
         )}
 
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Histórico</h2>
-            <div className="flex items-center gap-3">
-              {finishedTrips.length > 0 && (
-                <button onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}
-                  className="flex items-center gap-1 text-xs text-expense hover:text-expense/80 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" /> Limpar
-                </button>
-              )}
+        {/* Finished trips */}
+        {(statusFilter === "all" || statusFilter === "finished") && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Histórico</h2>
+              <div className="flex items-center gap-3">
+                {finishedTripsInView.length > 0 && (
+                  <button onClick={() => { if (confirm("Limpar todo o histórico de viagens finalizadas?")) clearHistory(); }}
+                    className="flex items-center gap-1 text-xs text-expense hover:text-expense/80 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" /> Limpar
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-          <TripHistoryList trips={finishedTrips} />
-        </section>
+            <TripHistoryList trips={finishedTripsInView} />
+          </section>
+        )}
       </div>
     </div>
   );

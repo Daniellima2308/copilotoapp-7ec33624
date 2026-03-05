@@ -41,24 +41,55 @@ export const useApp = () => {
   return ctx;
 };
 
-function calculateFuelingAverage(
+async function calculateFuelingAverage(
   fuelings: Fueling[],
   freights: Freight[],
   fueling: { kmCurrent: number; liters: number; fullTank: boolean },
-  fuelingIndex: number
-): number {
+  fuelingIndex: number,
+  tripVehicleId?: string
+): Promise<number> {
   if (!fueling.fullTank || fueling.liters === 0) return 0;
+
+  // Determine the trip's starting KM
+  const freightKms = freights.map(f => f.kmInitial).filter(k => k > 0);
+  const firstFuelingKm = fuelings.length > 0 ? fuelings[0].kmCurrent : fueling.kmCurrent;
+  const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
+  const isInitialFueling = fuelingIndex === 0 || fueling.kmCurrent === tripStartKm;
+
+  if (isInitialFueling) {
+    // Historical lookup: find last full_tank fueling for this vehicle
+    if (tripVehicleId) {
+      const { data: vehicleFuelings } = await supabase
+        .from("fuelings")
+        .select("km_current, trip_id")
+        .eq("full_tank", true)
+        .order("km_current", { ascending: false });
+      const { data: vehicleTrips } = await supabase
+        .from("trips")
+        .select("id")
+        .eq("vehicle_id", tripVehicleId);
+      const vehicleTripIds = new Set((vehicleTrips || []).map(t => t.id));
+      const historicFueling = (vehicleFuelings || [])
+        .filter(f => vehicleTripIds.has(f.trip_id) && f.km_current < fueling.kmCurrent)
+        .sort((a, b) => b.km_current - a.km_current)[0];
+
+      if (historicFueling) {
+        const distance = fueling.kmCurrent - historicFueling.km_current;
+        if (distance > 0) return Math.round((distance / fueling.liters) * 100) / 100;
+      }
+    }
+    return 0; // Marco Zero
+  }
+
+  // Normal calculation — exclude initial fueling liters
   let lastFullTankKm: number | null = null;
   let accumLiters = 0;
   for (let i = fuelingIndex - 1; i >= 0; i--) {
-    accumLiters += fuelings[i].liters;
+    const isThisInitial = fuelings[i].kmCurrent === tripStartKm;
+    if (!isThisInitial) accumLiters += fuelings[i].liters;
     if (fuelings[i].fullTank) { lastFullTankKm = fuelings[i].kmCurrent; break; }
   }
-  if (lastFullTankKm === null) {
-    const firstFreight = freights[0];
-    if (firstFreight) lastFullTankKm = firstFreight.kmInitial;
-    else return 0;
-  }
+  if (lastFullTankKm === null) return 0;
   const totalLiters = accumLiters + fueling.liters;
   const distance = fueling.kmCurrent - lastFullTankKm;
   if (totalLiters === 0 || distance <= 0) return 0;
@@ -340,7 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
     const trip = data.trips.find(t => t.id === tripId);
     const fuelingIndex = trip ? trip.fuelings.length : 0;
-    const average = trip ? calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex) : 0;
+    const average = trip ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
     await supabase.from("fuelings").insert({
       trip_id: tripId, user_id: user.id, station: f.stationName, total_value: f.totalValue,
       liters: f.liters, price_per_liter: Math.round(pricePerLiter * 100) / 100,
@@ -357,7 +388,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
     const trip = data.trips.find(t => t.id === tripId);
     const fuelingIndex = trip ? trip.fuelings.findIndex(fu => fu.id === fuelingId) : -1;
-    const average = trip && fuelingIndex >= 0 ? calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex) : 0;
+    const average = trip && fuelingIndex >= 0 ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
     await supabase.from("fuelings").update({
       station: f.stationName, total_value: f.totalValue, liters: f.liters,
       price_per_liter: Math.round(pricePerLiter * 100) / 100, km_current: f.kmCurrent,

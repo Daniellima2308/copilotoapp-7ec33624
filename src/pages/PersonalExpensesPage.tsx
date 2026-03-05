@@ -6,9 +6,10 @@ import { PERSONAL_EXPENSE_LABELS, PersonalExpenseCategory } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/calculations";
 
 const PersonalExpensesPage = () => {
-  const { data, getActiveTrip, addPersonalExpense, deletePersonalExpense } = useApp();
+  const { data, getActiveTrips, addPersonalExpense, deletePersonalExpense } = useApp();
   const navigate = useNavigate();
-  const activeTrip = getActiveTrip();
+  const activeTrips = getActiveTrips();
+  const activeTrip = activeTrips.length > 0 ? activeTrips[0] : undefined;
   const [showForm, setShowForm] = useState(false);
   const [cat, setCat] = useState<PersonalExpenseCategory>("almoco_janta");
   const [desc, setDesc] = useState("");

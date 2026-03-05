@@ -35,7 +35,7 @@ export function TripHistoryList({ trips }: TripHistoryListProps) {
               <CheckCircle className="w-4 h-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">
-                  {vehicle ? `${vehicle.brand} ${vehicle.model}` : "—"} → {getLastDestination(trip)}
+                  {vehicle ? `${vehicle.plate} • ${vehicle.brand} ${vehicle.model}` : "—"} → {getLastDestination(trip)}
                 </p>
                 <p className="text-xs text-muted-foreground">{formatDate(trip.createdAt)}</p>
               </div>

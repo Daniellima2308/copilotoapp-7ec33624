@@ -10,7 +10,7 @@ export function getTripTotalCommissions(trip: Trip): number {
 
 export function getTripTotalExpenses(trip: Trip): number {
   return trip.expenses.reduce((sum, e) => sum + e.value, 0) +
-    trip.fuelings.reduce((sum, f) => sum + f.totalValue, 0);
+    trip.fuelings.reduce((sum, f) => sum + (f.allocatedValue ?? f.totalValue), 0);
 }
 
 export function getTripTotalPersonalExpenses(trip: Trip): number {

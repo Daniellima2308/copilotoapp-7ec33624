@@ -1,0 +1,2 @@
+ALTER TABLE public.fuelings ADD COLUMN IF NOT EXISTS allocated_value double precision DEFAULT NULL;
+ALTER TABLE public.fuelings ADD COLUMN IF NOT EXISTS original_total_value double precision DEFAULT NULL;

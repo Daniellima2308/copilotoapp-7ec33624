@@ -110,6 +110,7 @@ export type Database = {
       }
       fuelings: {
         Row: {
+          allocated_value: number | null
           average: number
           created_at: string
           date: string
@@ -117,6 +118,7 @@ export type Database = {
           id: string
           km_current: number
           liters: number
+          original_total_value: number | null
           price_per_liter: number
           receipt_url: string | null
           station: string
@@ -125,6 +127,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allocated_value?: number | null
           average?: number
           created_at?: string
           date?: string
@@ -132,6 +135,7 @@ export type Database = {
           id?: string
           km_current?: number
           liters?: number
+          original_total_value?: number | null
           price_per_liter?: number
           receipt_url?: string | null
           station?: string
@@ -140,6 +144,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          allocated_value?: number | null
           average?: number
           created_at?: string
           date?: string
@@ -147,6 +152,7 @@ export type Database = {
           id?: string
           km_current?: number
           liters?: number
+          original_total_value?: number | null
           price_per_liter?: number
           receipt_url?: string | null
           station?: string

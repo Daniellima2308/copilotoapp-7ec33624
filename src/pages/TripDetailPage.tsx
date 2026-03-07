@@ -203,6 +203,14 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
   const [editingId, setEditingId] = useState<string | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>();
 
+  // Auto-calculate price per liter
+  const calcPricePerLiter = () => {
+    const v = parseFloat(value);
+    const l = parseFloat(liters);
+    if (v > 0 && l > 0) return (v / l).toFixed(3);
+    return "";
+  };
+
   const startEdit = (f: Fueling) => {
     setStation(f.stationName); setValue(String(f.totalValue)); setLiters(String(f.liters));
     setKmCur(String(f.kmCurrent)); setDate(f.date); setFullTank(f.fullTank ?? true);
@@ -228,56 +236,67 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
     <div className="space-y-2">
       {trip.fuelings.map((f: Fueling) => {
         const isFullTank = f.fullTank ?? true;
+        const isProrated = f.allocatedValue != null && f.originalTotalValue != null;
+        const displayValue = isProrated ? f.allocatedValue! : f.totalValue;
         return (
-          <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className={`p-1.5 rounded-md ${isFullTank ? "bg-profit/15" : "bg-warning/15"}`}>
-                {isFullTank ? <Fuel className="w-4 h-4 text-profit" /> : <Droplets className="w-4 h-4 text-warning" />}
+          <div key={f.id} className="gradient-card rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`p-1.5 rounded-md ${isFullTank ? "bg-profit/15" : "bg-warning/15"}`}>
+                  {isFullTank ? <Fuel className="w-4 h-4 text-profit" /> : <Droplets className="w-4 h-4 text-warning" />}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{f.stationName}</p>
+                  <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
+                  {(() => {
+                     const freightKms = trip.freights.map((fr: any) => fr.kmInitial).filter((k: number) => k > 0);
+                     const firstFuelingKm = trip.fuelings[0]?.kmCurrent ?? f.kmCurrent;
+                     const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
+                     const fIdx = trip.fuelings.findIndex((fu: Fueling) => fu.id === f.id);
+                     const isInitialFueling = fIdx === 0 || f.kmCurrent === tripStartKm;
+                     if (isInitialFueling && f.average > 0) {
+                       return (
+                         <p className="text-xs font-semibold text-profit flex items-center gap-1">
+                           Média: {formatNumber(f.average)} km/l
+                           <span title="Média calculada com base no último abastecimento do veículo" className="cursor-help">ℹ️</span>
+                         </p>
+                       );
+                     }
+                     if (isInitialFueling && f.average === 0) {
+                       return (
+                         <div>
+                           <p className="text-xs font-semibold text-blue-400">Marco Zero</p>
+                           <p className="text-[10px] italic text-muted-foreground">A média será calculada no próximo abastecimento</p>
+                         </div>
+                       );
+                     }
+                     if (isFullTank && f.average > 0) {
+                       return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
+                     }
+                     if (!isFullTank) {
+                       return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
+                     }
+                     return null;
+                   })()}
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium">{f.stationName}</p>
-                <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
-                {(() => {
-                   const freightKms = trip.freights.map((fr: any) => fr.kmInitial).filter((k: number) => k > 0);
-                   const firstFuelingKm = trip.fuelings[0]?.kmCurrent ?? f.kmCurrent;
-                   const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
-                   const fIdx = trip.fuelings.findIndex((fu: Fueling) => fu.id === f.id);
-                   const isInitialFueling = fIdx === 0 || f.kmCurrent === tripStartKm;
-                   if (isInitialFueling && f.average > 0) {
-                     return (
-                       <p className="text-xs font-semibold text-profit flex items-center gap-1">
-                         Média: {formatNumber(f.average)} km/l
-                         <span title="Média calculada com base no último abastecimento da viagem anterior" className="cursor-help">ℹ️</span>
-                       </p>
-                     );
-                   }
-                   if (isInitialFueling && f.average === 0) {
-                     return (
-                       <div>
-                         <p className="text-xs font-semibold text-blue-400">Marco Zero</p>
-                         <p className="text-[10px] italic text-muted-foreground">A média será calculada no próximo abastecimento</p>
-                       </div>
-                     );
-                   }
-                   if (isFullTank && f.average > 0) {
-                     return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
-                   }
-                   if (!isFullTank) {
-                     return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
-                   }
-                   return null;
-                 })()}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold font-mono text-expense">{formatCurrency(displayValue)}</span>
+                {isOpen && (
+                  <>
+                    <button onClick={() => startEdit(f)} className="p-1"><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
+                    <button onClick={() => deleteFueling(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold font-mono text-expense">{formatCurrency(f.totalValue)}</span>
-              {isOpen && (
-                <>
-                  <button onClick={() => startEdit(f)} className="p-1"><Pencil className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" /></button>
-                  <button onClick={() => deleteFueling(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
-                </>
-              )}
-            </div>
+            {isProrated && (
+              <div className="mt-2 px-2 py-1.5 rounded-md bg-accent/50 border border-border/50">
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  💡 Despesa rateada proporcionalmente. Valor total da nota: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span>
+                </p>
+              </div>
+            )}
           </div>
         );
       })}
@@ -290,6 +309,12 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
             <input placeholder="Odômetro Atual (KM)" type="number" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
           </div>
+          {calcPricePerLiter() && (
+            <div className="flex items-center gap-2 px-1 py-1.5 rounded-md bg-profit/10">
+              <Fuel className="w-3.5 h-3.5 text-profit" />
+              <span className="text-xs font-semibold text-profit">Preço/L: R$ {calcPricePerLiter()}</span>
+            </div>
+          )}
           <div className="flex items-center gap-3 py-1">
             <Switch id="fullTank" checked={fullTank} onCheckedChange={setFullTank} />
             <Label htmlFor="fullTank" className="text-sm font-medium cursor-pointer">Completou o tanque?</Label>

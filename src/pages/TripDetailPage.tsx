@@ -293,7 +293,7 @@ function FuelTab({ trip, isOpen, showForm, setShowForm, addFueling, updateFuelin
             {isProrated && (
               <div className="mt-2 px-2 py-1.5 rounded-md bg-accent/50 border border-border/50">
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  💡 Despesa rateada proporcionalmente. Valor total da nota: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span>
+                  💡 Despesa rateada proporcionalmente. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
                 </p>
               </div>
             )}

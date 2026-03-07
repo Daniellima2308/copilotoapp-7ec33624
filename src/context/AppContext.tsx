@@ -42,58 +42,109 @@ export const useApp = () => {
 };
 
 async function calculateFuelingAverage(
-  fuelings: Fueling[],
-  freights: Freight[],
-  fueling: { kmCurrent: number; liters: number; fullTank: boolean },
-  fuelingIndex: number,
-  tripVehicleId?: string
+  vehicleId: string,
+  fueling: { kmCurrent: number; liters: number; fullTank: boolean }
 ): Promise<number> {
   if (!fueling.fullTank || fueling.liters === 0) return 0;
 
-  // Determine the trip's starting KM
-  const freightKms = freights.map(f => f.kmInitial).filter(k => k > 0);
-  const firstFuelingKm = fuelings.length > 0 ? fuelings[0].kmCurrent : fueling.kmCurrent;
-  const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
-  const isInitialFueling = fuelingIndex === 0 || fueling.kmCurrent === tripStartKm;
+  // Find the last fueling for this vehicle across ALL trips (continuous odometer)
+  const { data: vehicleTrips } = await supabase
+    .from("trips").select("id").eq("vehicle_id", vehicleId);
+  const tripIds = (vehicleTrips || []).map(t => t.id);
+  if (tripIds.length === 0) return 0;
 
-  if (isInitialFueling) {
-    // Historical lookup: find last full_tank fueling for this vehicle
-    if (tripVehicleId) {
-      const { data: vehicleFuelings } = await supabase
-        .from("fuelings")
-        .select("km_current, trip_id")
-        .eq("full_tank", true)
-        .order("km_current", { ascending: false });
-      const { data: vehicleTrips } = await supabase
-        .from("trips")
-        .select("id")
-        .eq("vehicle_id", tripVehicleId);
-      const vehicleTripIds = new Set((vehicleTrips || []).map(t => t.id));
-      const historicFueling = (vehicleFuelings || [])
-        .filter(f => vehicleTripIds.has(f.trip_id) && f.km_current < fueling.kmCurrent)
-        .sort((a, b) => b.km_current - a.km_current)[0];
+  const { data: prevFuelings } = await supabase
+    .from("fuelings").select("km_current")
+    .in("trip_id", tripIds)
+    .lt("km_current", fueling.kmCurrent)
+    .order("km_current", { ascending: false })
+    .limit(1);
 
-      if (historicFueling) {
-        const distance = fueling.kmCurrent - historicFueling.km_current;
-        if (distance > 0) return Math.round((distance / fueling.liters) * 100) / 100;
-      }
-    }
-    return 0; // Marco Zero
-  }
+  const lastKm = prevFuelings?.[0]?.km_current;
+  if (!lastKm || lastKm <= 0) return 0; // Marco Zero
 
-  // Normal calculation — exclude initial fueling liters
-  let lastFullTankKm: number | null = null;
-  let accumLiters = 0;
-  for (let i = fuelingIndex - 1; i >= 0; i--) {
-    const isThisInitial = fuelings[i].kmCurrent === tripStartKm;
-    if (!isThisInitial) accumLiters += fuelings[i].liters;
-    if (fuelings[i].fullTank) { lastFullTankKm = fuelings[i].kmCurrent; break; }
-  }
-  if (lastFullTankKm === null) return 0;
-  const totalLiters = accumLiters + fueling.liters;
-  const distance = fueling.kmCurrent - lastFullTankKm;
-  if (totalLiters === 0 || distance <= 0) return 0;
-  return Math.round((distance / totalLiters) * 100) / 100;
+  const distance = fueling.kmCurrent - lastKm;
+  if (distance <= 0) return 0;
+  return Math.round((distance / fueling.liters) * 100) / 100;
+}
+
+interface AllocationResult {
+  allocatedValue: number | null;
+  originalTotalValue: number | null;
+  previousTripId: string | null;
+  previousTripCost: number;
+}
+
+async function calculateCostAllocation(
+  vehicleId: string,
+  currentTripId: string,
+  fueling: { kmCurrent: number; liters: number; totalValue: number },
+  pricePerLiter: number
+): Promise<AllocationResult> {
+  const noAlloc: AllocationResult = { allocatedValue: null, originalTotalValue: null, previousTripId: null, previousTripCost: 0 };
+
+  // Find the last fueling for this vehicle across all trips
+  const { data: vehicleTrips } = await supabase
+    .from("trips").select("id, vehicle_id, status, created_at")
+    .eq("vehicle_id", vehicleId)
+    .order("created_at", { ascending: false });
+  const tripIds = (vehicleTrips || []).map(t => t.id);
+  if (tripIds.length === 0) return noAlloc;
+
+  const { data: prevFuelings } = await supabase
+    .from("fuelings").select("km_current, trip_id")
+    .in("trip_id", tripIds)
+    .lt("km_current", fueling.kmCurrent)
+    .order("km_current", { ascending: false })
+    .limit(1);
+
+  const lastFueling = prevFuelings?.[0];
+  if (!lastFueling) return noAlloc;
+
+  // If the last fueling belongs to the same trip, no cross-trip allocation needed
+  if (lastFueling.trip_id === currentTripId) return noAlloc;
+
+  // The last fueling was from a different trip — we need to find the trip start KM
+  // Trip start KM = min(first freight KM, first fueling KM) of current trip
+  const { data: currentFreights } = await supabase
+    .from("freights").select("km_initial")
+    .eq("trip_id", currentTripId)
+    .order("km_initial", { ascending: true }).limit(1);
+  const { data: currentFuelings } = await supabase
+    .from("fuelings").select("km_current")
+    .eq("trip_id", currentTripId)
+    .order("km_current", { ascending: true }).limit(1);
+
+  const freightStartKm = currentFreights?.[0]?.km_initial || Infinity;
+  const fuelingStartKm = currentFuelings?.[0]?.km_current || Infinity;
+  const tripStartKm = Math.min(freightStartKm, fuelingStartKm, fueling.kmCurrent);
+
+  // If last fueling KM >= trip start KM, no cross-trip split needed
+  if (lastFueling.km_current >= tripStartKm) return noAlloc;
+
+  // Calculate the split
+  const totalDistance = fueling.kmCurrent - lastFueling.km_current;
+  if (totalDistance <= 0) return noAlloc;
+
+  const currentTripDistance = fueling.kmCurrent - tripStartKm;
+  const previousTripDistance = tripStartKm - lastFueling.km_current;
+
+  // Average = totalDistance / liters (already calculated)
+  const average = totalDistance / fueling.liters;
+  if (average <= 0) return noAlloc;
+
+  const currentTripLiters = currentTripDistance / average;
+  const previousTripLiters = previousTripDistance / average;
+
+  const currentTripCost = Math.round(currentTripLiters * pricePerLiter * 100) / 100;
+  const previousTripCost = Math.round(previousTripLiters * pricePerLiter * 100) / 100;
+
+  return {
+    allocatedValue: currentTripCost,
+    originalTotalValue: fueling.totalValue,
+    previousTripId: lastFueling.trip_id,
+    previousTripCost,
+  };
 }
 
 async function recalculateVehicleKm(vehicleId: string) {
@@ -179,7 +230,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (fuelingsRes.data || []).forEach((f: any) => {
         const fueling: Fueling = { id: f.id, tripId: f.trip_id, stationName: f.station, totalValue: f.total_value,
           liters: f.liters, pricePerLiter: f.price_per_liter, kmCurrent: f.km_current, fullTank: f.full_tank,
-          average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined };
+          average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined,
+          allocatedValue: f.allocated_value ?? undefined, originalTotalValue: f.original_total_value ?? undefined };
         if (!fuelingsMap.has(f.trip_id)) fuelingsMap.set(f.trip_id, []);
         fuelingsMap.get(f.trip_id)!.push(fueling);
       });
@@ -402,15 +454,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+    const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
-    const fuelingIndex = trip ? trip.fuelings.length : 0;
-    const average = trip ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
+    const vehicleId = trip?.vehicleId || "";
+    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+
+    // Cross-trip cost allocation
+    const allocation = vehicleId ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL) : null;
+
     await supabase.from("fuelings").insert({
       trip_id: tripId, user_id: user.id, station: f.stationName, total_value: f.totalValue,
-      liters: f.liters, price_per_liter: Math.round(pricePerLiter * 100) / 100,
+      liters: f.liters, price_per_liter: roundedPPL,
       km_current: f.kmCurrent, full_tank: f.fullTank, average, date: f.date,
       receipt_url: f.receiptUrl || null,
+      allocated_value: allocation?.allocatedValue ?? null,
+      original_total_value: allocation?.originalTotalValue ?? null,
     });
+
+    // If there's a cross-trip allocation, add expense to the previous trip
+    if (allocation?.previousTripId && allocation.previousTripCost > 0) {
+      await supabase.from("expenses").insert({
+        trip_id: allocation.previousTripId, user_id: user.id,
+        category: "combustivel_rateio",
+        description: `Rateio combustível - ${f.stationName}`,
+        value: allocation.previousTripCost,
+        date: f.date,
+      });
+    }
+
     if (trip) {
       await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     }
@@ -419,12 +490,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateFueling = useCallback(async (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+    const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
-    const fuelingIndex = trip ? trip.fuelings.findIndex(fu => fu.id === fuelingId) : -1;
-    const average = trip && fuelingIndex >= 0 ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
+    const vehicleId = trip?.vehicleId || "";
+    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+
     await supabase.from("fuelings").update({
       station: f.stationName, total_value: f.totalValue, liters: f.liters,
-      price_per_liter: Math.round(pricePerLiter * 100) / 100, km_current: f.kmCurrent,
+      price_per_liter: roundedPPL, km_current: f.kmCurrent,
       full_tank: f.fullTank, average, date: f.date, receipt_url: f.receiptUrl || null,
     }).eq("id", fuelingId);
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);

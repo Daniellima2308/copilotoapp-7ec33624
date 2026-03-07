@@ -50,6 +50,10 @@ export interface Fueling {
   fullTank: boolean;
   date: string;
   receiptUrl?: string;
+  /** When cost was prorated across trips, this is the value allocated to THIS trip */
+  allocatedValue?: number;
+  /** Original full invoice value when prorated */
+  originalTotalValue?: number;
 }
 
 export type ExpenseCategory =
@@ -59,6 +63,7 @@ export type ExpenseCategory =
   | "alimentacao"
   | "hospedagem"
   | "multa"
+  | "combustivel_rateio"
   | "outros";
 
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -68,6 +73,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   alimentacao: "Alimentação",
   hospedagem: "Hospedagem",
   multa: "Multa",
+  combustivel_rateio: "Combustível (Rateio)",
   outros: "Outros",
 };
 

@@ -468,16 +468,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
-    const roundedPPL = Math.round(pricePerLiter * 100) / 100;
+    const roundedPPL = round2(pricePerLiter);
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId || "";
-    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
 
-    // Cross-trip cost allocation
-    const allocation = vehicleId ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL) : null;
+    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+    const allocation = (vehicleId && f.fullTank)
+      ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL)
+      : null;
+
+    const effectiveCurrentTripCost = allocation?.allocatedValue ?? round2(f.totalValue);
 
     await supabase.from("fuelings").insert({
-      trip_id: tripId, user_id: user.id, station: f.stationName, total_value: f.totalValue,
+      trip_id: tripId, user_id: user.id, station: f.stationName, total_value: effectiveCurrentTripCost,
       liters: f.liters, price_per_liter: roundedPPL,
       km_current: f.kmCurrent, full_tank: f.fullTank, average, date: f.date,
       receipt_url: f.receiptUrl || null,
@@ -485,8 +488,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       original_total_value: allocation?.originalTotalValue ?? null,
     });
 
-    // If there's a cross-trip allocation, add expense to the previous trip
-    if (allocation?.previousTripId && allocation.previousTripCost > 0) {
+    // Se houve rateio entre viagens, lança retroativamente na viagem anterior
+    if (allocation?.originalTotalValue != null && allocation.previousTripId && allocation.previousTripCost > 0) {
       await supabase.from("expenses").insert({
         trip_id: allocation.previousTripId, user_id: user.id,
         category: "combustivel_rateio",

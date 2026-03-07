@@ -63,6 +63,7 @@ export type ExpenseCategory =
   | "alimentacao"
   | "hospedagem"
   | "multa"
+  | "combustivel_rateio"
   | "outros";
 
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -72,6 +73,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   alimentacao: "Alimentação",
   hospedagem: "Hospedagem",
   multa: "Multa",
+  combustivel_rateio: "Combustível (Rateio)",
   outros: "Outros",
 };
 

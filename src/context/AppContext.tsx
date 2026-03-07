@@ -454,15 +454,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+    const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
-    const fuelingIndex = trip ? trip.fuelings.length : 0;
-    const average = trip ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
+    const vehicleId = trip?.vehicleId || "";
+    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+
+    // Cross-trip cost allocation
+    const allocation = vehicleId ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL) : null;
+
     await supabase.from("fuelings").insert({
       trip_id: tripId, user_id: user.id, station: f.stationName, total_value: f.totalValue,
-      liters: f.liters, price_per_liter: Math.round(pricePerLiter * 100) / 100,
+      liters: f.liters, price_per_liter: roundedPPL,
       km_current: f.kmCurrent, full_tank: f.fullTank, average, date: f.date,
       receipt_url: f.receiptUrl || null,
+      allocated_value: allocation?.allocatedValue ?? null,
+      original_total_value: allocation?.originalTotalValue ?? null,
     });
+
+    // If there's a cross-trip allocation, add expense to the previous trip
+    if (allocation?.previousTripId && allocation.previousTripCost > 0) {
+      await supabase.from("expenses").insert({
+        trip_id: allocation.previousTripId, user_id: user.id,
+        category: "combustivel_rateio",
+        description: `Rateio combustível - ${f.stationName}`,
+        value: allocation.previousTripCost,
+        date: f.date,
+      });
+    }
+
     if (trip) {
       await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     }
@@ -471,12 +490,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateFueling = useCallback(async (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
+    const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
-    const fuelingIndex = trip ? trip.fuelings.findIndex(fu => fu.id === fuelingId) : -1;
-    const average = trip && fuelingIndex >= 0 ? await calculateFuelingAverage(trip.fuelings, trip.freights, f, fuelingIndex, trip.vehicleId) : 0;
+    const vehicleId = trip?.vehicleId || "";
+    const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+
     await supabase.from("fuelings").update({
       station: f.stationName, total_value: f.totalValue, liters: f.liters,
-      price_per_liter: Math.round(pricePerLiter * 100) / 100, km_current: f.kmCurrent,
+      price_per_liter: roundedPPL, km_current: f.kmCurrent,
       full_tank: f.fullTank, average, date: f.date, receipt_url: f.receiptUrl || null,
     }).eq("id", fuelingId);
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);

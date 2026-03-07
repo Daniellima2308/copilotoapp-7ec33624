@@ -230,7 +230,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (fuelingsRes.data || []).forEach((f: any) => {
         const fueling: Fueling = { id: f.id, tripId: f.trip_id, stationName: f.station, totalValue: f.total_value,
           liters: f.liters, pricePerLiter: f.price_per_liter, kmCurrent: f.km_current, fullTank: f.full_tank,
-          average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined };
+          average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined,
+          allocatedValue: f.allocated_value ?? undefined, originalTotalValue: f.original_total_value ?? undefined };
         if (!fuelingsMap.has(f.trip_id)) fuelingsMap.set(f.trip_id, []);
         fuelingsMap.get(f.trip_id)!.push(fueling);
       });

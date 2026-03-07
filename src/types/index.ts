@@ -50,6 +50,10 @@ export interface Fueling {
   fullTank: boolean;
   date: string;
   receiptUrl?: string;
+  /** When cost was prorated across trips, this is the value allocated to THIS trip */
+  allocatedValue?: number;
+  /** Original full invoice value when prorated */
+  originalTotalValue?: number;
 }
 
 export type ExpenseCategory =

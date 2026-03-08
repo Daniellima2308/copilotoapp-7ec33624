@@ -488,6 +488,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       original_total_value: allocation?.originalTotalValue ?? null,
     });
 
+    // Get the inserted fueling ID to link rateio expenses
+    const { data: insertedFueling } = await supabase
+      .from("fuelings").select("id")
+      .eq("trip_id", tripId).eq("user_id", user.id)
+      .eq("km_current", f.kmCurrent).eq("date", f.date)
+      .order("created_at", { ascending: false }).limit(1);
+    const sourceFuelingId = insertedFueling?.[0]?.id || null;
+
     // Se houve rateio entre viagens, lança retroativamente na viagem anterior
     if (allocation?.originalTotalValue != null && allocation.previousTripId && allocation.previousTripCost > 0) {
       await supabase.from("expenses").insert({
@@ -496,6 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Rateio combustível - ${f.stationName}`,
         value: allocation.previousTripCost,
         date: f.date,
+        source_fueling_id: sourceFuelingId,
       });
     }
 
@@ -506,25 +515,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const updateFueling = useCallback(async (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
+    if (!user) return;
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
     const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId || "";
     const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
+    const allocation = (vehicleId && f.fullTank)
+      ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL)
+      : null;
+    const effectiveCurrentTripCost = allocation?.allocatedValue ?? round2(f.totalValue);
+
+    // Delete old rateio expenses linked to this fueling
+    await supabase.from("expenses").delete().eq("source_fueling_id", fuelingId);
 
     await supabase.from("fuelings").update({
-      station: f.stationName, total_value: f.totalValue, liters: f.liters,
+      station: f.stationName, total_value: effectiveCurrentTripCost, liters: f.liters,
       price_per_liter: roundedPPL, km_current: f.kmCurrent,
       full_tank: f.fullTank, average, date: f.date, receipt_url: f.receiptUrl || null,
+      allocated_value: allocation?.allocatedValue ?? null,
+      original_total_value: allocation?.originalTotalValue ?? null,
     }).eq("id", fuelingId);
+
+    // Re-create rateio expense if needed
+    if (allocation?.originalTotalValue != null && allocation.previousTripId && allocation.previousTripCost > 0) {
+      await supabase.from("expenses").insert({
+        trip_id: allocation.previousTripId, user_id: user.id,
+        category: "combustivel_rateio",
+        description: `Rateio combustível - ${f.stationName}`,
+        value: allocation.previousTripCost,
+        date: f.date,
+        source_fueling_id: fuelingId,
+      });
+    }
+
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     else await fetchData();
-  }, [data.trips, fetchData, updateVehicleKm]);
+  }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
-    // Find the trip to get vehicle ID before deleting
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId;
+    // Delete linked rateio expenses first (cascade should handle but be explicit)
+    await supabase.from("expenses").delete().eq("source_fueling_id", fuelingId);
+    // Now delete the fueling itself
     await supabase.from("fuelings").delete().eq("id", fuelingId);
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);

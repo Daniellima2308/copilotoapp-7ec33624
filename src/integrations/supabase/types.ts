@@ -22,6 +22,7 @@ export type Database = {
           description: string
           id: string
           receipt_url: string | null
+          source_fueling_id: string | null
           trip_id: string
           user_id: string
           value: number
@@ -33,6 +34,7 @@ export type Database = {
           description?: string
           id?: string
           receipt_url?: string | null
+          source_fueling_id?: string | null
           trip_id: string
           user_id: string
           value?: number
@@ -44,11 +46,19 @@ export type Database = {
           description?: string
           id?: string
           receipt_url?: string | null
+          source_fueling_id?: string | null
           trip_id?: string
           user_id?: string
           value?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_source_fueling_id_fkey"
+            columns: ["source_fueling_id"]
+            isOneToOne: false
+            referencedRelation: "fuelings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_trip_id_fkey"
             columns: ["trip_id"]

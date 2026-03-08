@@ -527,7 +527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const effectiveCurrentTripCost = allocation?.allocatedValue ?? round2(f.totalValue);
 
     // Delete old rateio expenses linked to this fueling
-    await (supabase.from("expenses").delete() as any).eq("source_fueling_id", fuelingId);
+    await supabase.from("expenses").delete().eq("source_fueling_id", fuelingId);
 
     await supabase.from("fuelings").update({
       station: f.stationName, total_value: effectiveCurrentTripCost, liters: f.liters,

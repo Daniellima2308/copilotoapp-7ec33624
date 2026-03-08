@@ -557,7 +557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId;
     // Delete linked rateio expenses first (cascade should handle but be explicit)
-    await supabase.from("expenses").delete().eq("source_fueling_id" as any, fuelingId);
+    await (supabase.from("expenses").delete() as any).eq("source_fueling_id", fuelingId);
     // Now delete the fueling itself
     await supabase.from("fuelings").delete().eq("id", fuelingId);
     if (vehicleId) {

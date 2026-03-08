@@ -83,7 +83,7 @@ function FuelForm({
 }
 
 export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling }: FuelTabProps) {
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
 
   const handleAdd = (data: any) => {

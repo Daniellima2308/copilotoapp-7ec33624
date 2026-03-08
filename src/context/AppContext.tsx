@@ -488,6 +488,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       original_total_value: allocation?.originalTotalValue ?? null,
     });
 
+    // Get the inserted fueling ID to link rateio expenses
+    const { data: insertedFueling } = await supabase
+      .from("fuelings").select("id")
+      .eq("trip_id", tripId).eq("user_id", user.id)
+      .eq("km_current", f.kmCurrent).eq("date", f.date)
+      .order("created_at", { ascending: false }).limit(1);
+    const sourceFuelingId = insertedFueling?.[0]?.id || null;
+
     // Se houve rateio entre viagens, lança retroativamente na viagem anterior
     if (allocation?.originalTotalValue != null && allocation.previousTripId && allocation.previousTripCost > 0) {
       await supabase.from("expenses").insert({
@@ -496,7 +504,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Rateio combustível - ${f.stationName}`,
         value: allocation.previousTripCost,
         date: f.date,
-      });
+        source_fueling_id: sourceFuelingId,
+      } as any);
     }
 
     if (trip) {

@@ -57,7 +57,7 @@ const TripDetailPage = () => {
             <button onClick={() => navigate("/")} className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-bold">Detalhes da Viagem</h1>
+            <h1 className="text-lg font-bold whitespace-nowrap">Detalhes</h1>
           </div>
           <div className="flex gap-1.5">
             <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}

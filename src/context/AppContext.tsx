@@ -554,9 +554,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
-    // Find the trip to get vehicle ID before deleting
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId;
+    // Delete linked rateio expenses first (cascade should handle but be explicit)
+    await supabase.from("expenses").delete().eq("source_fueling_id" as any, fuelingId);
+    // Now delete the fueling itself
     await supabase.from("fuelings").delete().eq("id", fuelingId);
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);

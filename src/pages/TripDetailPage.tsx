@@ -57,7 +57,7 @@ const TripDetailPage = () => {
             <button onClick={() => navigate("/")} className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-bold">Detalhes da Viagem</h1>
+            <h1 className="text-lg font-bold whitespace-nowrap">Detalhes</h1>
           </div>
           <div className="flex gap-1.5">
             <button onClick={() => exportSingleTripPdf(trip, data.vehicles)}
@@ -88,7 +88,7 @@ const TripDetailPage = () => {
         <div className="grid grid-cols-3 gap-2">
           <MetricCard label="Bruto" value={formatCurrency(gross)} icon={<DollarSign className="w-4 h-4" />} />
           <MetricCard label="Líquido" value={formatCurrency(net)} icon={<TrendingUp className="w-4 h-4" />} valueClass={net >= 0 ? "text-profit" : "text-expense"} />
-          <MetricCard label="KM Total" value={`${formatNumber(effectiveKm.km)} km`} icon={<Route className="w-4 h-4" />} subtitle={effectiveKm.isEstimate ? "(Est.)" : undefined} />
+          <MetricCard label="KM Total" value={`${formatNumber(trip.estimatedDistance || 0)} km`} icon={<Route className="w-4 h-4" />} />
           <MetricCard label="Lucro/KM" value={`R$ ${formatNumber(profitKm)}`} icon={<TrendingUp className="w-4 h-4" />} valueClass="text-profit" />
           <MetricCard label="Custo/KM" value={`R$ ${formatNumber(costKm)}`} icon={<TrendingDown className="w-4 h-4" />} valueClass="text-expense" />
           {avgConsumption > 0 && (

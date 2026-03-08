@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trip, Freight } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
-import { MapPin, Plus, Trash2 } from "lucide-react";
+import { MapPin, Plus, Trash2, Ruler } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface FreightTabProps {
@@ -33,9 +33,12 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
         <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">{f.origin} → {f.destination}</p>
-            <p className="text-xs text-muted-foreground">
-              KM: {formatNumber(f.kmInitial)} • Comissão: {formatCurrency(f.commissionValue)}
-            </p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                <Ruler className="w-3 h-3" /> {formatNumber(f.kmInitial)} km
+              </span>
+              <span className="text-xs text-muted-foreground">Comissão: {formatCurrency(f.commissionValue)}</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold font-mono text-profit">{formatCurrency(f.grossValue)}</span>

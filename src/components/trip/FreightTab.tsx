@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trip, Freight } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
-import { MapPin, Plus, Trash2 } from "lucide-react";
+import { MapPin, Plus, Trash2, Ruler } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface FreightTabProps {

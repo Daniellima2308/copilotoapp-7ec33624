@@ -546,7 +546,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         value: allocation.previousTripCost,
         date: f.date,
         source_fueling_id: fuelingId,
-      } as any);
+      });
     }
 
     if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);

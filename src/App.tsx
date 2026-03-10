@@ -14,7 +14,7 @@ import NewTripPage from "./pages/NewTripPage";
 import TripDetailPage from "./pages/TripDetailPage";
 import FreightAnalysisPage from "./pages/FreightAnalysisPage";
 import HistoryPage from "./pages/HistoryPage";
-import MenuPage from "./pages/MenuPage";
+import ProfilePage from "./pages/ProfilePage";
 import MaintenancePage from "./pages/MaintenancePage";
 import PersonalExpensesPage from "./pages/PersonalExpensesPage";
 import PXDigitalPage from "./pages/PXDigitalPage";
@@ -38,7 +38,8 @@ function ProtectedApp() {
           <Route path="/trip/:id" element={<TripDetailPage />} />
           <Route path="/freight-analysis" element={<FreightAnalysisPage />} />
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/menu" element={<MenuPage />} />
+          <Route path="/perfil" element={<ProfilePage />} />
+          <Route path="/menu" element={<ProfilePage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="/personal-expenses" element={<PersonalExpensesPage />} />
           <Route path="/px" element={<PXDigitalPage />} />

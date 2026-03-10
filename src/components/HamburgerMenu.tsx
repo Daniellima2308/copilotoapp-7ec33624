@@ -87,7 +87,7 @@ export function HamburgerMenu() {
             <h2 className="text-lg font-bold">Menu</h2>
           </div>
           <nav className="px-3 py-4 space-y-1">
-            <MenuItem icon={User} label="Meu Perfil" onClick={() => go("/menu")} />
+            <MenuItem icon={User} label="Meu Perfil" onClick={() => go("/perfil")} />
             <MenuItem icon={Lock} label="Alterar Senha" onClick={() => { setOpen(false); setShowPassword(true); }} />
             <MenuItem icon={Wrench} label="Manutenção" onClick={() => go("/maintenance")} />
             <MenuItem icon={Wallet} label="Gastos Pessoais" onClick={() => go("/personal-expenses")} />

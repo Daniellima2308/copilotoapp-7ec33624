@@ -101,15 +101,13 @@ const ProfilePage = () => {
 
   // Stats
   const totalTrips = data.trips.length;
-  const totalKm = data.freights.reduce((acc, f) => acc + Math.max(0, f.km_final - f.km_initial), 0);
+  const totalKm = data.trips.reduce((acc, t) => acc + (t.estimatedDistance || 0), 0);
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthRevenue = data.freights
-    .filter((f) => {
-      const trip = data.trips.find((t) => t.id === f.trip_id);
-      return trip && new Date(trip.created_at) >= monthStart;
-    })
-    .reduce((acc, f) => acc + (f.gross_value - f.commission_value), 0);
+  const monthRevenue = data.trips
+    .filter((t) => new Date(t.createdAt) >= monthStart)
+    .flatMap((t) => t.freights)
+    .reduce((acc, f) => acc + (f.grossValue - f.commissionValue), 0);
 
   // Main vehicle
   const mainVehicle = data.vehicles[0] || null;

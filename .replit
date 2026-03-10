@@ -1,0 +1,47 @@
+modules = ["nodejs-20", "web"]
+
+[nix]
+channel = "stable-25_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["node", "./dist/index.cjs"]
+build = ["npm", "run", "build"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx vite --port 5000 --host 0.0.0.0"
+waitForPort = 5000
+
+[agent]
+integrations = ["javascript_database:1.0.0"]
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+VITE_SUPABASE_URL = "https://ywgnlrhzsjfstfjqeffg.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3Z25scmh6c2pmc3RmanFlZmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODU2NTEsImV4cCI6MjA4NzI2MTY1MX0.8Oua0jYG_Gs4sgYBgzWzxKAYxNqphC8PTA9yuHVgZ5w"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3Z25scmh6c2pmc3RmanFlZmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2ODU2NTEsImV4cCI6MjA4NzI2MTY1MX0.8Oua0jYG_Gs4sgYBgzWzxKAYxNqphC8PTA9yuHVgZ5w"

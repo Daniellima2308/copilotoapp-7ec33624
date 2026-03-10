@@ -173,7 +173,7 @@ const ProfilePage = () => {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold truncate">{mainVehicle.brand} {mainVehicle.model}</p>
                 <p className="text-xs text-muted-foreground">Placa: {mainVehicle.plate}</p>
-                <p className="text-xs text-muted-foreground">KM atual: {mainVehicle.current_km.toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-muted-foreground">KM atual: {mainVehicle.currentKm.toLocaleString("pt-BR")}</p>
               </div>
             </div>
           </section>

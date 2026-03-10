@@ -38,7 +38,8 @@ function ProtectedApp() {
           <Route path="/trip/:id" element={<TripDetailPage />} />
           <Route path="/freight-analysis" element={<FreightAnalysisPage />} />
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/menu" element={<MenuPage />} />
+          <Route path="/perfil" element={<ProfilePage />} />
+          <Route path="/menu" element={<ProfilePage />} />
           <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="/personal-expenses" element={<PersonalExpensesPage />} />
           <Route path="/px" element={<PXDigitalPage />} />

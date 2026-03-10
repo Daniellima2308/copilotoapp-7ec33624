@@ -14,7 +14,7 @@ import NewTripPage from "./pages/NewTripPage";
 import TripDetailPage from "./pages/TripDetailPage";
 import FreightAnalysisPage from "./pages/FreightAnalysisPage";
 import HistoryPage from "./pages/HistoryPage";
-import MenuPage from "./pages/MenuPage";
+import ProfilePage from "./pages/ProfilePage";
 import MaintenancePage from "./pages/MaintenancePage";
 import PersonalExpensesPage from "./pages/PersonalExpensesPage";
 import PXDigitalPage from "./pages/PXDigitalPage";

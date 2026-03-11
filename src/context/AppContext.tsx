@@ -502,6 +502,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [fetchData]);
 
+  const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
+    if (!user) return;
+    const commissionValue = f.grossValue * (f.commissionPercent / 100);
+    await supabase.from("freights").update({
+      origin: f.origin, destination: f.destination, km_initial: f.kmInitial,
+      gross_value: f.grossValue, commission_percent: f.commissionPercent, commission_value: commissionValue,
+    }).eq("id", freightId);
+    try {
+      const { getRouteDistance } = await import("@/lib/routeApi");
+      const { data: dbFreights } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
+      const distances = await Promise.all((dbFreights || []).map(fr => getRouteDistance(fr.origin, fr.destination)));
+      const totalEstimated = distances.reduce((sum, d) => sum + (d || 0), 0);
+      await supabase.from("trips").update({ estimated_distance: totalEstimated }).eq("id", tripId);
+    } catch (err) {
+      console.warn("Could not recalculate estimated distance:", err);
+    }
+    await fetchData();
+  }, [user, fetchData]);
+
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;
 

@@ -673,6 +673,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [fetchData]);
 
+  const updatePersonalExpense = useCallback(async (_tripId: string, id: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
+    await supabase.from("personal_expenses").update({
+      category: e.category, description: e.description, value: e.value, date: e.date,
+    }).eq("id", id);
+    await fetchData();
+  }, [fetchData]);
+
   const clearHistory = useCallback(async () => {
     const finishedTrips = data.trips.filter(t => t.status === "finished");
     for (const trip of finishedTrips) await supabase.from("trips").delete().eq("id", trip.id);

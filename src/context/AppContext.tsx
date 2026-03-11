@@ -641,6 +641,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [fetchData]);
 
+  const updateExpense = useCallback(async (_tripId: string, expenseId: string, e: Omit<Expense, "id" | "tripId">) => {
+    await supabase.from("expenses").update({
+      category: e.category, description: e.description, value: e.value,
+      date: e.date, receipt_url: e.receiptUrl || null,
+    }).eq("id", expenseId);
+    await fetchData();
+  }, [fetchData]);
+
   const addPersonalExpense = useCallback(async (tripId: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
     if (!user) return;
 

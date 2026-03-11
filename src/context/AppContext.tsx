@@ -712,6 +712,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const deletePersonalExpense = useCallback(async (_tripId: string, id: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deletePersonalExpense", payload: { id } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     await supabase.from("personal_expenses").delete().eq("id", id);
     await fetchData();
   }, [fetchData]);

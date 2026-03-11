@@ -379,6 +379,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [user, fetchData]);
 
+  const updateVehicle = useCallback(async (id: string, v: Partial<Omit<Vehicle, "id">>) => {
+    const updateData: any = {};
+    if (v.brand !== undefined) updateData.brand = v.brand;
+    if (v.model !== undefined) updateData.model = v.model;
+    if (v.year !== undefined) updateData.year = v.year;
+    if (v.plate !== undefined) updateData.plate = v.plate;
+    if (v.isFleetOwner !== undefined) updateData.is_fleet_owner = v.isFleetOwner;
+    if (v.driverName !== undefined) updateData.driver_name = v.driverName;
+    if (v.currentKm !== undefined) updateData.current_km = v.currentKm;
+    await supabase.from("vehicles").update(updateData).eq("id", id);
+    await fetchData();
+  }, [fetchData]);
+
   const deleteVehicle = useCallback(async (id: string) => {
     await supabase.from("vehicles").delete().eq("id", id);
     await fetchData();

@@ -12,6 +12,7 @@ interface AppContextType {
   personalExpensesEnabled: boolean;
   setPersonalExpensesEnabled: (v: boolean) => Promise<void>;
   addVehicle: (v: Omit<Vehicle, "id">) => Promise<void>;
+  updateVehicle: (id: string, v: Partial<Omit<Vehicle, "id">>) => Promise<void>;
   deleteVehicle: (id: string) => Promise<void>;
   updateVehicleKm: (vehicleId: string, km: number) => Promise<void>;
   addTrip: (vehicleId: string) => Promise<Trip>;
@@ -19,13 +20,16 @@ interface AppContextType {
   deleteTrip: (id: string) => Promise<void>;
   getActiveTrips: () => Trip[];
   addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
+  updateFreight: (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   addFueling: (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   updateFueling: (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   deleteFueling: (tripId: string, fuelingId: string) => Promise<void>;
   addExpense: (tripId: string, e: Omit<Expense, "id" | "tripId">) => Promise<void>;
+  updateExpense: (tripId: string, expenseId: string, e: Omit<Expense, "id" | "tripId">) => Promise<void>;
   deleteExpense: (tripId: string, expenseId: string) => Promise<void>;
   addPersonalExpense: (tripId: string, e: Omit<PersonalExpense, "id" | "tripId">) => Promise<void>;
+  updatePersonalExpense: (tripId: string, id: string, e: Omit<PersonalExpense, "id" | "tripId">) => Promise<void>;
   deletePersonalExpense: (tripId: string, id: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -317,6 +321,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             case "addPersonalExpense":
               await supabase.from("personal_expenses").insert({ ...action.payload, user_id: user.id });
               break;
+            case "addFreight":
+              await supabase.from("freights").insert({ ...action.payload, user_id: user.id });
+              break;
+            case "deleteFreight":
+              await supabase.from("freights").delete().eq("id", action.payload.id);
+              break;
+            case "deleteFueling":
+              await supabase.from("expenses").delete().eq("source_fueling_id", action.payload.id);
+              await supabase.from("fuelings").delete().eq("id", action.payload.id);
+              break;
+            case "deleteExpense":
+              await supabase.from("expenses").delete().eq("id", action.payload.id);
+              break;
+            case "deletePersonalExpense":
+              await supabase.from("personal_expenses").delete().eq("id", action.payload.id);
+              break;
             case "finishTrip":
               await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", action.payload.tripId);
               if (action.payload.arrivalKm) {
@@ -359,6 +379,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [user, fetchData]);
 
+  const updateVehicle = useCallback(async (id: string, v: Partial<Omit<Vehicle, "id">>) => {
+    const updateData: any = {};
+    if (v.brand !== undefined) updateData.brand = v.brand;
+    if (v.model !== undefined) updateData.model = v.model;
+    if (v.year !== undefined) updateData.year = v.year;
+    if (v.plate !== undefined) updateData.plate = v.plate;
+    if (v.isFleetOwner !== undefined) updateData.is_fleet_owner = v.isFleetOwner;
+    if (v.driverName !== undefined) updateData.driver_name = v.driverName;
+    if (v.currentKm !== undefined) updateData.current_km = v.currentKm;
+    await supabase.from("vehicles").update(updateData).eq("id", id);
+    await fetchData();
+  }, [fetchData]);
+
   const deleteVehicle = useCallback(async (id: string) => {
     await supabase.from("vehicles").delete().eq("id", id);
     await fetchData();
@@ -393,6 +426,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const finishTrip = useCallback(async (id: string, arrivalKm?: number) => {
     const trip = data.trips.find(t => t.id === id);
 
+    // Validate: trip must have at least 1 freight
+    if (trip && trip.freights.length === 0) {
+      toast({ title: "Não é possível finalizar", description: "Adicione pelo menos 1 frete antes de finalizar a viagem.", variant: "destructive" });
+      throw new Error("Trip must have at least 1 freight");
+    }
+
     if (!isOnline()) {
       addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId } });
       toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
@@ -426,6 +465,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
+
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "addFreight", payload: {
+        trip_id: tripId, origin: f.origin, destination: f.destination,
+        km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
+        commission_percent: f.commissionPercent, commission_value: commissionValue,
+      }});
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
     await supabase.from("freights").insert({
       trip_id: tripId, user_id: user.id, origin: f.origin, destination: f.destination,
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
@@ -446,6 +496,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deleteFreight", payload: { id: freightId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     await supabase.from("freights").delete().eq("id", freightId);
     try {
       const { getRouteDistance } = await import("@/lib/routeApi");
@@ -462,6 +517,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     await fetchData();
   }, [fetchData]);
+
+  const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
+    if (!user) return;
+    const commissionValue = f.grossValue * (f.commissionPercent / 100);
+    await supabase.from("freights").update({
+      origin: f.origin, destination: f.destination, km_initial: f.kmInitial,
+      gross_value: f.grossValue, commission_percent: f.commissionPercent, commission_value: commissionValue,
+    }).eq("id", freightId);
+    try {
+      const { getRouteDistance } = await import("@/lib/routeApi");
+      const { data: dbFreights } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
+      const distances = await Promise.all((dbFreights || []).map(fr => getRouteDistance(fr.origin, fr.destination)));
+      const totalEstimated = distances.reduce((sum, d) => sum + (d || 0), 0);
+      await supabase.from("trips").update({ estimated_distance: totalEstimated }).eq("id", tripId);
+    } catch (err) {
+      console.warn("Could not recalculate estimated distance:", err);
+    }
+    await fetchData();
+  }, [user, fetchData]);
 
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;
@@ -565,11 +639,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deleteFueling", payload: { id: fuelingId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId;
-    // Delete linked rateio expenses first (cascade should handle but be explicit)
     await supabase.from("expenses").delete().eq("source_fueling_id", fuelingId);
-    // Now delete the fueling itself
     await supabase.from("fuelings").delete().eq("id", fuelingId);
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);
@@ -598,7 +675,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const deleteExpense = useCallback(async (_tripId: string, expenseId: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deleteExpense", payload: { id: expenseId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     await supabase.from("expenses").delete().eq("id", expenseId);
+    await fetchData();
+  }, [fetchData]);
+
+  const updateExpense = useCallback(async (_tripId: string, expenseId: string, e: Omit<Expense, "id" | "tripId">) => {
+    await supabase.from("expenses").update({
+      category: e.category, description: e.description, value: e.value,
+      date: e.date, receipt_url: e.receiptUrl || null,
+    }).eq("id", expenseId);
     await fetchData();
   }, [fetchData]);
 
@@ -622,7 +712,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const deletePersonalExpense = useCallback(async (_tripId: string, id: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deletePersonalExpense", payload: { id } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     await supabase.from("personal_expenses").delete().eq("id", id);
+    await fetchData();
+  }, [fetchData]);
+
+  const updatePersonalExpense = useCallback(async (_tripId: string, id: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
+    await supabase.from("personal_expenses").update({
+      category: e.category, description: e.description, value: e.value, date: e.date,
+    }).eq("id", id);
     await fetchData();
   }, [fetchData]);
 
@@ -649,9 +751,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       data, loading, personalExpensesEnabled, setPersonalExpensesEnabled,
-      addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
-      addFreight, deleteFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense,
-      addPersonalExpense, deletePersonalExpense,
+      addVehicle, updateVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
+      addFreight, updateFreight, deleteFreight, addFueling, updateFueling, deleteFueling,
+      addExpense, updateExpense, deleteExpense,
+      addPersonalExpense, updatePersonalExpense, deletePersonalExpense,
       clearHistory, refreshData: fetchData, addMaintenanceService, deleteMaintenanceService,
     }}>
       {children}

@@ -39,7 +39,7 @@ const TripDetailPage = () => {
   const avgConsumption = getTripAverageConsumption(trip);
   const costKm = getTripCostPerKm(trip);
   const profitKm = getTripProfitPerKm(trip);
-  const totalKm = getTripTotalKm(trip);
+  const totalKm = effectiveKm.km;
   const effectiveKm = getEffectiveKm(trip);
 
   const handleFinish = async (km: number) => {

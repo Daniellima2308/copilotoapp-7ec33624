@@ -321,6 +321,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             case "addPersonalExpense":
               await supabase.from("personal_expenses").insert({ ...action.payload, user_id: user.id });
               break;
+            case "addFreight":
+              await supabase.from("freights").insert({ ...action.payload, user_id: user.id });
+              break;
+            case "deleteFreight":
+              await supabase.from("freights").delete().eq("id", action.payload.id);
+              break;
+            case "deleteFueling":
+              await supabase.from("expenses").delete().eq("source_fueling_id", action.payload.id);
+              await supabase.from("fuelings").delete().eq("id", action.payload.id);
+              break;
+            case "deleteExpense":
+              await supabase.from("expenses").delete().eq("id", action.payload.id);
+              break;
+            case "deletePersonalExpense":
+              await supabase.from("personal_expenses").delete().eq("id", action.payload.id);
+              break;
             case "finishTrip":
               await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", action.payload.tripId);
               if (action.payload.arrivalKm) {

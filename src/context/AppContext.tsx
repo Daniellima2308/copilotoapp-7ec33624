@@ -496,6 +496,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deleteFreight", payload: { id: freightId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     await supabase.from("freights").delete().eq("id", freightId);
     try {
       const { getRouteDistance } = await import("@/lib/routeApi");

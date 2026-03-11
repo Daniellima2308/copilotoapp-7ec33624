@@ -186,7 +186,12 @@ async function recalculateVehicleKm(vehicleId: string) {
   const maxKm = Math.max(maxFuelingKm, maxFreightKm);
 
   if (maxKm > 0) {
-    await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
+    // Protect against KM decreasing — get current vehicle KM
+    const { data: vehicleData } = await supabase.from("vehicles").select("current_km").eq("id", vehicleId).single();
+    const currentKm = vehicleData?.current_km || 0;
+    if (maxKm >= currentKm) {
+      await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
+    }
   }
 }
 

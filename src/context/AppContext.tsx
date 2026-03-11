@@ -722,9 +722,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       data, loading, personalExpensesEnabled, setPersonalExpensesEnabled,
-      addVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
-      addFreight, deleteFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense,
-      addPersonalExpense, deletePersonalExpense,
+      addVehicle, updateVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
+      addFreight, updateFreight, deleteFreight, addFueling, updateFueling, deleteFueling,
+      addExpense, updateExpense, deleteExpense,
+      addPersonalExpense, updatePersonalExpense, deletePersonalExpense,
       clearHistory, refreshData: fetchData, addMaintenanceService, deleteMaintenanceService,
     }}>
       {children}

@@ -465,6 +465,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
+
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "addFreight", payload: {
+        trip_id: tripId, origin: f.origin, destination: f.destination,
+        km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
+        commission_percent: f.commissionPercent, commission_value: commissionValue,
+      }});
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
+
     await supabase.from("freights").insert({
       trip_id: tripId, user_id: user.id, origin: f.origin, destination: f.destination,
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,

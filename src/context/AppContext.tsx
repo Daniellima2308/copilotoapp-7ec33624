@@ -639,11 +639,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
+    if (!isOnline()) {
+      addToOfflineQueue({ type: "deleteFueling", payload: { id: fuelingId } });
+      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      return;
+    }
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId;
-    // Delete linked rateio expenses first (cascade should handle but be explicit)
     await supabase.from("expenses").delete().eq("source_fueling_id", fuelingId);
-    // Now delete the fueling itself
     await supabase.from("fuelings").delete().eq("id", fuelingId);
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);

@@ -326,9 +326,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           removeFromQueue(action.id);
         } catch (err) {
           console.error("Failed to sync action:", action, err);
+          syncErrors++;
         }
       }
-      toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
+      if (syncErrors === 0) {
+        toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
+      } else {
+        toast({ title: "Sincronização parcial", description: `${syncErrors} ação(ões) falharam. Serão tentadas novamente.`, variant: "destructive" });
+      }
       await fetchData();
     };
 

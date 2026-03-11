@@ -304,6 +304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const queue = getOfflineQueue();
       if (queue.length === 0 || !user) return;
 
+      let syncErrors = 0;
       for (const action of queue) {
         try {
           switch (action.type) {

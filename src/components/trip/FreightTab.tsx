@@ -51,9 +51,9 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
           <div className="grid grid-cols-2 gap-3">
             <CityAutocomplete placeholder="Origem" value={origin} onChange={setOrigin} className="input-field" />
             <CityAutocomplete placeholder="Destino" value={dest} onChange={setDest} className="input-field" />
-            <input placeholder="KM Inicial" type="number" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" />
-            <input placeholder="Valor Bruto (R$)" type="number" step="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
-            <input placeholder="Comissão (%)" type="number" step="0.1" value={comm} onChange={(e) => setComm(e.target.value)} className="input-field" />
+            <input placeholder="KM Inicial" type="number" min="0" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" />
+            <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
+            <input placeholder="Comissão (%)" type="number" step="0.1" min="0" max="100" value={comm} onChange={(e) => setComm(e.target.value)} className="input-field" />
           </div>
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>

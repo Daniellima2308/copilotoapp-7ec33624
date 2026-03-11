@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import {
-  getTripGrossRevenue, getTripNetRevenue, getTripTotalKm,
+  getTripGrossRevenue, getTripNetRevenue,
   getTripAverageConsumption, getTripCostPerKm, getTripProfitPerKm,
-  formatCurrency, formatNumber, formatDate, getEffectiveKm,
+  formatCurrency, formatNumber, getEffectiveKm,
 } from "@/lib/calculations";
 import {
   ArrowLeft, Fuel, MapPin, Receipt, Gauge, DollarSign, TrendingUp,

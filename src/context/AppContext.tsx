@@ -84,7 +84,7 @@ async function calculateFuelingAverage(
   if (!previous) return 0;
 
   const distanceTotalTrecho = fueling.kmCurrent - previous.kmCurrent;
-  if (distanceTotalTrecho <= 0) return 0;
+  if (distanceTotalTrecho <= 0 || fueling.liters <= 0) return 0;
 
   return round2(distanceTotalTrecho / fueling.liters);
 }

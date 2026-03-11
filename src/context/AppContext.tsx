@@ -84,7 +84,7 @@ async function calculateFuelingAverage(
   if (!previous) return 0;
 
   const distanceTotalTrecho = fueling.kmCurrent - previous.kmCurrent;
-  if (distanceTotalTrecho <= 0) return 0;
+  if (distanceTotalTrecho <= 0 || fueling.liters <= 0) return 0;
 
   return round2(distanceTotalTrecho / fueling.liters);
 }
@@ -186,7 +186,12 @@ async function recalculateVehicleKm(vehicleId: string) {
   const maxKm = Math.max(maxFuelingKm, maxFreightKm);
 
   if (maxKm > 0) {
-    await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
+    // Protect against KM decreasing — get current vehicle KM
+    const { data: vehicleData } = await supabase.from("vehicles").select("current_km").eq("id", vehicleId).single();
+    const currentKm = vehicleData?.current_km || 0;
+    if (maxKm >= currentKm) {
+      await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
+    }
   }
 }
 
@@ -299,6 +304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const queue = getOfflineQueue();
       if (queue.length === 0 || !user) return;
 
+      let syncErrors = 0;
       for (const action of queue) {
         try {
           switch (action.type) {
@@ -321,9 +327,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           removeFromQueue(action.id);
         } catch (err) {
           console.error("Failed to sync action:", action, err);
+          syncErrors++;
         }
       }
-      toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
+      if (syncErrors === 0) {
+        toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
+      } else {
+        toast({ title: "Sincronização parcial", description: `${syncErrors} ação(ões) falharam. Serão tentadas novamente.`, variant: "destructive" });
+      }
       await fetchData();
     };
 

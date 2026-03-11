@@ -58,9 +58,9 @@ function FuelForm({
     <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <input placeholder="Nome do Posto" value={station} onChange={(e) => setStation(e.target.value)} className="input-field col-span-2" />
-        <input placeholder="Valor Total (R$)" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
-        <input placeholder="Litros" type="number" step="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} className="input-field" />
-        <input placeholder="Odômetro Atual (KM)" type="number" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
+        <input placeholder="Valor Total (R$)" type="number" step="0.01" min="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
+        <input placeholder="Litros" type="number" step="0.01" min="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} className="input-field" />
+        <input placeholder="Odômetro Atual (KM)" type="number" min="0" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
       </div>
       {calcPricePerLiter() && (

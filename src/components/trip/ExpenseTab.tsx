@@ -49,7 +49,7 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, de
               {Object.entries(EXPENSE_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <input placeholder="Descrição (opcional)" value={desc} onChange={(e) => setDesc(e.target.value)} className="input-field col-span-2" />
-            <input placeholder="Valor (R$)" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
+            <input placeholder="Valor (R$)" type="number" step="0.01" min="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
           </div>
           <ReceiptUpload value={receiptUrl} onChange={setReceiptUrl} />

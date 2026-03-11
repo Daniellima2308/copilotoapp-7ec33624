@@ -426,6 +426,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const finishTrip = useCallback(async (id: string, arrivalKm?: number) => {
     const trip = data.trips.find(t => t.id === id);
 
+    // Validate: trip must have at least 1 freight
+    if (trip && trip.freights.length === 0) {
+      toast({ title: "Não é possível finalizar", description: "Adicione pelo menos 1 frete antes de finalizar a viagem.", variant: "destructive" });
+      throw new Error("Trip must have at least 1 freight");
+    }
+
     if (!isOnline()) {
       addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId } });
       toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });

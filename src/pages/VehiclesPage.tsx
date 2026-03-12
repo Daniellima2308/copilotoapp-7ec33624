@@ -6,7 +6,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { isValidBrazilianPlate, normalizePlateInput, parseDecimal, sanitizeIntegerInput } from "@/lib/inputMasks";
-import { VEHICLE_PROFILE_TEMPLATES, getVehicleProfile, setVehicleProfile } from "@/lib/vehicleProfiles";
 
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 

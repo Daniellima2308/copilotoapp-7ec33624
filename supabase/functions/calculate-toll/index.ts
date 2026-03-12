@@ -50,7 +50,11 @@ serve(async (req) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(`TollGuru API error [${response.status}]: ${JSON.stringify(data)}`);
+      console.error("TollGuru API error:", response.status, JSON.stringify(data));
+      return new Response(
+        JSON.stringify({ error: "Toll calculation failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Extract toll cost from cheapest route

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ActiveTripCard } from "@/components/ActiveTripCard";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import logoImg from "@/assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { exportMultipleTripsPdf } from "@/lib/exportPdf";
+import { CopilotoOperationMode, getOperationMode } from "@/lib/operationMode";
 
 function filterTripsByPeriod(trips: Trip[], period: string): Trip[] {
   if (period === "all") return trips;
@@ -36,6 +37,18 @@ const Dashboard = () => {
   const [selectedVehicleId, setSelectedVehicleId] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "finished">("all");
   const navigate = useNavigate();
+  const [operationMode, setOperationModeState] = useState<CopilotoOperationMode>("driver");
+
+  useEffect(() => {
+    const syncMode = () => setOperationModeState(getOperationMode());
+    syncMode();
+    window.addEventListener("storage", syncMode);
+    window.addEventListener("focus", syncMode);
+    return () => {
+      window.removeEventListener("storage", syncMode);
+      window.removeEventListener("focus", syncMode);
+    };
+  }, []);
 
   const vehicleFilteredTrips = useMemo(() => {
     if (selectedVehicleId === "all") return data.trips;
@@ -141,7 +154,14 @@ const Dashboard = () => {
           )}
         </div>
 
-        <SummaryCards grossRevenue={grossRevenue} netRevenue={netRevenue} totalExpenses={totalExpenses} totalCommissions={totalCommissions} />
+        {operationMode === "manager" ? (
+          <SummaryCards grossRevenue={grossRevenue} netRevenue={netRevenue} totalExpenses={totalExpenses} totalCommissions={totalCommissions} />
+        ) : (
+          <div className="gradient-card rounded-lg p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Modo Operacional</p>
+            <p className="text-sm font-semibold">Visão focada na estrada ativa. Troque para modo Gestão no Perfil para ver consolidado financeiro completo.</p>
+          </div>
+        )}
 
         {/* Nova Viagem button - always visible */}
         <button onClick={handleNewTrip}
@@ -159,7 +179,7 @@ const Dashboard = () => {
         )}
 
         {/* Finished trips */}
-        {(statusFilter === "all" || statusFilter === "finished") && (
+        {operationMode === "manager" && (statusFilter === "all" || statusFilter === "finished") && (
           <section>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Histórico</h2>

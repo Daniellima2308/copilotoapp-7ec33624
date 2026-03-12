@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Truck, User, Wrench, Settings2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
@@ -32,7 +32,19 @@ const VehiclesPage = () => {
   const [isFleetOwner, setIsFleetOwner] = useState(false);
   const [driverName, setDriverName] = useState("");
 
+  const [profileModalVehicleId, setProfileModalVehicleId] = useState<string | null>(null);
+  const [profileDraft, setProfileDraft] = useState<string>("custom");
+
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
+
+  const profileLabelsByVehicle = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const v of data.vehicles) {
+      const profile = getVehicleProfile(v.id);
+      if (profile) map.set(v.id, profile.label);
+    }
+    return map;
+  }, [data.vehicles]);
 
   const handleBrandChange = (val: string) => { setBrand(val); setModel(""); setCustomModel(""); };
 
@@ -73,6 +85,19 @@ const VehiclesPage = () => {
     setIsFleetOwner(false); setDriverName(""); setShowForm(false);
   };
 
+  const openProfileModal = (vehicleId: string) => {
+    const current = getVehicleProfile(vehicleId);
+    setProfileDraft(current?.id || "custom");
+    setProfileModalVehicleId(vehicleId);
+  };
+
+  const saveVehicleProfile = () => {
+    if (!profileModalVehicleId) return;
+    setVehicleProfile(profileModalVehicleId, profileDraft);
+    setProfileModalVehicleId(null);
+    toast({ title: "Perfil técnico aplicado", description: "As recomendações de manutenção vão usar esse perfil." });
+  };
+
   const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
 
   return (
@@ -97,9 +122,13 @@ const VehiclesPage = () => {
                     <User className="w-3 h-3" /> {v.driverName}
                   </p>
                 )}
+                <p className="text-[10px] text-info mt-0.5">Perfil técnico: {profileLabelsByVehicle.get(v.id) || "Não configurado"}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button onClick={() => openProfileModal(v.id)} className="p-2 rounded-lg hover:bg-accent transition-colors" title="Configurar Perfil Técnico">
+                <Settings2 className="w-4 h-4 text-info" />
+              </button>
               <button onClick={() => navigate(`/maintenance?vehicleId=${v.id}`)}
                 className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
                 <Wrench className="w-4 h-4 text-muted-foreground" />
@@ -156,6 +185,26 @@ const VehiclesPage = () => {
           </button>
         )}
       </div>
+
+      {profileModalVehicleId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setProfileModalVehicleId(null)}>
+          <div className="bg-card rounded-xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold">Perfil técnico do caminhão</h3>
+            <select value={profileDraft} onChange={(e) => setProfileDraft(e.target.value)} className="input-field w-full">
+              {VEHICLE_PROFILE_TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+            <div className="text-xs text-muted-foreground bg-secondary rounded-lg p-3">
+              Esse perfil define parâmetros de consumo e recomendações de manutenção para acelerar a operação no trecho.
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={saveVehicleProfile} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Aplicar Perfil</button>
+              <button type="button" onClick={() => setProfileModalVehicleId(null)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

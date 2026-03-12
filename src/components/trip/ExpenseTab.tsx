@@ -3,6 +3,8 @@ import { Trip, Expense, ExpenseCategory, EXPENSE_CATEGORY_LABELS } from "@/types
 import { formatCurrency, formatDate } from "@/lib/calculations";
 import { Plus, Trash2 } from "lucide-react";
 import { ReceiptUpload } from "@/components/ReceiptUpload";
+import { toast } from "@/hooks/use-toast";
+import { formatCurrencyInput, parseCurrencyInput } from "@/lib/inputMasks";
 
 interface ExpenseTabProps {
   trip: Trip;
@@ -22,9 +24,13 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, de
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value) return;
+    const numericValue = parseCurrencyInput(value);
+    if (numericValue <= 0) {
+      toast({ title: "Valor inválido", description: "Informe uma despesa maior que R$ 0,00.", variant: "destructive" });
+      return;
+    }
     const finalDesc = desc.trim() || EXPENSE_CATEGORY_LABELS[cat];
-    addExpense(trip.id, { category: cat, description: finalDesc, value: parseFloat(value), date, receiptUrl });
+    addExpense(trip.id, { category: cat, description: finalDesc, value: numericValue, date, receiptUrl });
     setDesc(""); setValue(""); setReceiptUrl(undefined); setShowForm(false);
   };
 
@@ -49,7 +55,7 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, de
               {Object.entries(EXPENSE_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
             <input placeholder="Descrição (opcional)" value={desc} onChange={(e) => setDesc(e.target.value)} className="input-field col-span-2" />
-            <input placeholder="Valor (R$)" type="number" step="0.01" min="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
+            <input placeholder="Valor (R$)" inputMode="numeric" value={value} onChange={(e) => setValue(formatCurrencyInput(e.target.value))} className="input-field" />
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
           </div>
           <ReceiptUpload value={receiptUrl} onChange={setReceiptUrl} />

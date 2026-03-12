@@ -8,6 +8,7 @@ import {
   Camera, Loader2, Pencil, Phone, Wallet, LogOut, Truck, MapPin, TrendingUp, ChevronLeft,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { formatPhoneInput } from "@/lib/inputMasks";
 
 const ProfilePage = () => {
   const { user, signOut } = useAuth();
@@ -239,7 +240,7 @@ const ProfilePage = () => {
             type="tel"
             placeholder="(11) 99999-9999"
             value={editPhone}
-            onChange={(e) => setEditPhone(e.target.value)}
+            onChange={(e) => setEditPhone(formatPhoneInput(e.target.value))}
             className="input-field w-full text-base py-3"
           />
           <button onClick={handleUpdatePhone} disabled={submitting} className="w-full gradient-profit text-primary-foreground rounded-xl font-bold disabled:opacity-50" style={{ minHeight: 52 }}>

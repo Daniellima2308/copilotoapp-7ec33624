@@ -5,7 +5,6 @@ import { ArrowLeft, Plus, Trash2, Wrench, Gauge, Truck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MaintenanceService } from "@/types";
 import { formatNumber } from "@/lib/calculations";
-import { getVehicleProfile } from "@/lib/vehicleProfiles";
 
 const COMMON_SERVICES = [
   "Óleo de Motor",
@@ -79,28 +78,6 @@ const MaintenancePage = () => {
   const vehicleServices = data.maintenanceServices.filter(s => s.vehicleId === vehicleId);
   const selectedVehicle = data.vehicles.find(v => v.id === vehicleId);
 
-  const applySuggestedPlan = async () => {
-    if (!selectedVehicle) return;
-    const profile = getVehicleProfile(selectedVehicle.id);
-    if (!profile) {
-      return;
-    }
-
-    const currentVehicleServices = data.maintenanceServices
-      .filter((s) => s.vehicleId === selectedVehicle.id)
-      .map((s) => s.serviceName.toLowerCase());
-
-    for (const item of profile.maintenancePlan) {
-      if (currentVehicleServices.includes(item.serviceName.toLowerCase())) continue;
-      await addMaintenanceService({
-        vehicleId: selectedVehicle.id,
-        serviceName: item.serviceName,
-        lastChangeKm: selectedVehicle.currentKm,
-        intervalKm: item.intervalKm,
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="px-4 pt-6 pb-4 flex items-center gap-3">
@@ -123,15 +100,6 @@ const MaintenancePage = () => {
               ))}
             </SelectContent>
           </Select>
-        )}
-
-        {selectedVehicle && getVehicleProfile(selectedVehicle.id) && (
-          <button
-            onClick={applySuggestedPlan}
-            className="w-full rounded-xl border border-info/30 bg-info/10 text-info py-2.5 text-xs font-bold hover:bg-info/20 transition-colors"
-          >
-            Aplicar plano sugerido do perfil técnico
-          </button>
         )}
 
         {selectedVehicle && (

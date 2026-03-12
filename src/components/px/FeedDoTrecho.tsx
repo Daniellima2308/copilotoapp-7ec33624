@@ -48,12 +48,12 @@ const FeedDoTrecho = ({
       await supabase.from("mural_likes").delete().eq("post_id", postId).eq("user_id", userId);
       setLikedPosts((p) => { const n = new Set(p); n.delete(postId); return n; });
       setPosts((p) => p.map((x) => x.id === postId ? { ...x, likes: Math.max(0, x.likes - 1) } : x));
-      await supabase.from("mural_posts").update({ likes: Math.max(0, (posts.find((x) => x.id === postId)?.likes || 1) - 1) }).eq("id", postId);
+      await supabase.rpc("increment_post_likes" as any, { post_id: postId, amount: -1 });
     } else {
       await supabase.from("mural_likes").insert({ post_id: postId, user_id: userId });
       setLikedPosts((p) => new Set(p).add(postId));
       setPosts((p) => p.map((x) => x.id === postId ? { ...x, likes: x.likes + 1 } : x));
-      await supabase.from("mural_posts").update({ likes: (posts.find((x) => x.id === postId)?.likes || 0) + 1 }).eq("id", postId);
+      await supabase.rpc("increment_post_likes" as any, { post_id: postId, amount: 1 });
     }
   };
 

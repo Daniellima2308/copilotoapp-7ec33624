@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
+import { isValidBrazilianPlate, normalizePlateInput, parseDecimal, sanitizeIntegerInput } from "@/lib/inputMasks";
 
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
@@ -37,11 +39,34 @@ const VehiclesPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalModel = model === "__custom" ? customModel : model;
-    if (!brand || !finalModel || !year || !plate || !currentKm) return;
-    if (isFleetOwner && !driverName.trim()) return;
+    const safePlate = normalizePlateInput(plate);
+    const parsedYear = Number.parseInt(sanitizeIntegerInput(year), 10);
+    const parsedKm = parseDecimal(currentKm);
+
+    if (!brand || !finalModel || !year || !plate || !currentKm) {
+      toast({ title: "Dados incompletos", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
+      return;
+    }
+    if (!isValidBrazilianPlate(safePlate)) {
+      toast({ title: "Placa inválida", description: "Use padrão Mercosul (ABC1D23) ou antigo (ABC1234).", variant: "destructive" });
+      return;
+    }
+    if (!Number.isFinite(parsedYear) || parsedYear < 1950 || parsedYear > new Date().getFullYear() + 1) {
+      toast({ title: "Ano inválido", description: "Confira o ano do veículo.", variant: "destructive" });
+      return;
+    }
+    if (parsedKm < 0) {
+      toast({ title: "KM inválido", description: "O KM não pode ser negativo.", variant: "destructive" });
+      return;
+    }
+    if (isFleetOwner && !driverName.trim()) {
+      toast({ title: "Nome do motorista", description: "Informe o motorista para veículo de frota.", variant: "destructive" });
+      return;
+    }
+
     addVehicle({
-      brand, model: finalModel, year: parseInt(year), plate: plate.toUpperCase(),
-      currentKm: parseFloat(currentKm),
+      brand, model: finalModel, year: parsedYear, plate: safePlate,
+      currentKm: parsedKm,
       isFleetOwner, driverName: isFleetOwner ? driverName.trim() : undefined,
     });
     setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm("");
@@ -104,9 +129,9 @@ const VehiclesPage = () => {
               {model === "__custom" && (
                 <input placeholder="Digite o modelo" value={customModel} onChange={(e) => setCustomModel(e.target.value)} className={`${inputClass} col-span-2`} />
               )}
-              <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)} className={inputClass} />
-              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7} className={`${inputClass} uppercase font-mono`} />
-              <input placeholder="KM Atual do Painel" type="number" value={currentKm} onChange={(e) => setCurrentKm(e.target.value)} className={`${inputClass} col-span-2`} />
+              <input placeholder="Ano" inputMode="numeric" value={year} onChange={(e) => setYear(sanitizeIntegerInput(e.target.value).slice(0, 4))} className={inputClass} />
+              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(normalizePlateInput(e.target.value))} maxLength={7} className={`${inputClass} uppercase font-mono`} />
+              <input placeholder="KM Atual do Painel" inputMode="decimal" value={currentKm} onChange={(e) => setCurrentKm(e.target.value.replace(/,/g, ".").replace(/[^\d.]/g, ""))} className={`${inputClass} col-span-2`} />
             </div>
             <div className="flex items-center justify-between py-2">
               <div>

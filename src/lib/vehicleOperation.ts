@@ -39,6 +39,19 @@ export function normalizeVehicleProfileForPersistence(input: {
   };
 }
 
+export function normalizeVehicleProfileUpdateForPersistence(input: {
+  currentVehicle?: Pick<Vehicle, "operationProfile" | "driverBond" | "defaultCommissionPercent">;
+  operationProfile?: VehicleOperationProfile;
+  driverBond?: DriverBond;
+  defaultCommissionPercent?: number;
+}) {
+  return normalizeVehicleProfileForPersistence({
+    operationProfile: input.operationProfile ?? input.currentVehicle?.operationProfile,
+    driverBond: input.driverBond ?? input.currentVehicle?.driverBond,
+    defaultCommissionPercent: input.defaultCommissionPercent ?? input.currentVehicle?.defaultCommissionPercent,
+  });
+}
+
 export function profileUsesFixedCommission(profile: VehicleOperationProfile) {
   return profile === "commissioned_driver" || profile === "owner_with_driver";
 }

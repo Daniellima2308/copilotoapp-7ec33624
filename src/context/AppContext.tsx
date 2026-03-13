@@ -7,7 +7,7 @@ import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCache
 import { toast } from "@/hooks/use-toast";
 import { AppContext } from "@/context/app-context";
 import { getKmBounds, getNumericWarnings, validateKmByContext, validatePercent, validatePositiveNumber } from "@/lib/fieldValidation";
-import { isDriverBond, isVehicleOperationProfile, normalizeVehicleProfileForPersistence } from "@/lib/vehicleOperation";
+import { isDriverBond, isVehicleOperationProfile, normalizeVehicleProfileForPersistence, normalizeVehicleProfileUpdateForPersistence } from "@/lib/vehicleOperation";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -439,7 +439,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (v.currentKm !== undefined) updateData.current_km = v.currentKm;
 
     if (v.operationProfile !== undefined || v.driverBond !== undefined || v.defaultCommissionPercent !== undefined) {
-      const normalizedProfile = normalizeVehicleProfileForPersistence({
+      const currentVehicle = data.vehicles.find((vehicle) => vehicle.id === id);
+      const normalizedProfile = normalizeVehicleProfileUpdateForPersistence({
+        currentVehicle,
         operationProfile: v.operationProfile,
         driverBond: v.driverBond,
         defaultCommissionPercent: v.defaultCommissionPercent,
@@ -453,7 +455,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (error) throw new Error(error.message || "Falha ao atualizar o veículo.");
 
     await fetchData({ throwOnError: true });
-  }, [fetchData]);
+  }, [data.vehicles, fetchData]);
 
   const deleteVehicle = useCallback(async (id: string) => {
     const { error } = await supabase.from("vehicles").delete().eq("id", id);
@@ -535,7 +537,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getActiveTrips = useCallback(() => data.trips.filter(t => t.status === "open"), [data.trips]);
 
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
-    if (!user) return;
+    if (!user) throw new Error("Usuário não autenticado.");
 
     const kmValidation = validatePositiveNumber(f.kmInitial, "KM inicial", true);
     const grossValidation = validatePositiveNumber(f.grossValue, "Valor bruto");
@@ -543,8 +545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!kmValidation.isValid || !grossValidation.isValid || !percentValidation.isValid) {
       const message = kmValidation.message || grossValidation.message || percentValidation.message;
-      toast({ title: "Não deu para salvar o frete", description: message, variant: "destructive" });
-      return;
+      throw new Error(message || "Dados do frete inválidos.");
     }
 
     const trip = data.trips.find((t) => t.id === tripId);
@@ -553,8 +554,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const timelineKms = await getVehicleTimelineKms(vehicleId);
       const kmCheck = validateKmByContext(f.kmInitial, "KM inicial", timelineKms);
       if (!kmCheck.isValid) {
-        toast({ title: "KM incoerente para este veículo", description: kmCheck.message, variant: "destructive" });
-        return;
+        throw new Error(kmCheck.message || "KM incoerente para este veículo.");
       }
       showWarnings(kmCheck.warnings);
     }
@@ -573,11 +573,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    await supabase.from("freights").insert({
+    const { error: freightInsertError } = await supabase.from("freights").insert({
       trip_id: tripId, user_id: user.id, origin: f.origin, destination: f.destination,
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
       commission_percent: f.commissionPercent, commission_value: commissionValue,
     });
+    if (freightInsertError) throw new Error(freightInsertError.message || "Falha ao salvar o frete.");
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);
     }
@@ -637,8 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const timelineKms = await getVehicleTimelineKms(vehicleId, { freightId });
       const kmCheck = validateKmByContext(f.kmInitial, "KM inicial", timelineKms);
       if (!kmCheck.isValid) {
-        toast({ title: "KM incoerente para este veículo", description: kmCheck.message, variant: "destructive" });
-        return;
+        throw new Error(kmCheck.message || "KM incoerente para este veículo.");
       }
       showWarnings(kmCheck.warnings);
     }

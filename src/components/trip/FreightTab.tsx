@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 import { Trip, Freight, Vehicle } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import { MapPin, Plus, Trash2, Ruler, Wallet } from "lucide-react";
@@ -28,6 +29,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
   const [gross, setGross] = useState("");
   const [useCommission, setUseCommission] = useState(false);
   const [comm, setComm] = useState("");
+  const { toast } = useToast();
 
   const defaultCommission = useMemo(() => getDefaultCommissionPercentForVehicle(vehicle), [vehicle]);
   const usesFixedCommission = vehicle ? profileUsesFixedCommission(vehicle.operationProfile) : false;
@@ -50,15 +52,26 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
     setComm("");
   }, [showForm, vehicle, defaultCommission]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin || !dest || !km || !gross) return;
     if (showCommissionInput && !comm) return;
 
     const commissionPercent = showCommissionInput ? parseFloat(comm) : 0;
 
-    addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent, createdAt: new Date().toISOString() });
-    setOrigin(""); setDest(""); setKm(""); setGross(""); setUseCommission(false); setComm(""); setShowForm(false);
+    try {
+      await addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent, createdAt: new Date().toISOString() });
+      setOrigin("");
+      setDest("");
+      setKm("");
+      setGross("");
+      setUseCommission(false);
+      setComm("");
+      setShowForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível salvar este frete agora.";
+      toast({ title: "Não deu para salvar", description: message, variant: "destructive" });
+    }
   };
 
   return (
@@ -82,7 +95,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
               <p className="text-sm font-mono font-bold text-profit">{formatCurrency(f.grossValue)}</p>
             </div>
             <div className="rounded-md bg-secondary/60 p-2">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Wallet className="w-3 h-3" />Comissão</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Wallet className="w-3 h-3" />{isDriverOwnerProfile ? "Retirada" : "Comissão"}</p>
               <p className="text-sm font-mono font-bold">{formatCurrency(f.commissionValue)}</p>
             </div>
             <div className="rounded-md bg-secondary/60 p-2">
@@ -117,12 +130,12 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           )}
 
           {usesFixedCommission && (
-            <p className="text-xs text-muted-foreground">Comissão aplicada: {defaultCommission}%</p>
+            <p className="text-xs text-muted-foreground">{isDriverOwnerProfile ? "Retirada aplicada" : "Comissão aplicada"}: {defaultCommission}%</p>
           )}
 
           {showCommissionInput && (
             <input
-              placeholder={isDriverOwnerProfile ? "Minha retirada (%)" : "Comissão (%)"}
+              placeholder={isDriverOwnerProfile ? "Retirada (%)" : "Comissão (%)"}
               type="number"
               step="0.1"
               min="0"
@@ -135,7 +148,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           )}
 
           {!showToggle && vehicle?.operationProfile === "driver_owner" && (
-            <p className="text-xs text-muted-foreground">Neste perfil, os fretes entram sem comissão e o foco fica no líquido da viagem.</p>
+            <p className="text-xs text-muted-foreground">Neste perfil, os fretes entram sem retirada e o foco fica no líquido da viagem.</p>
           )}
 
           <div className="flex gap-2">

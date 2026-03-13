@@ -152,12 +152,7 @@ async function recalculateVehicleKm(vehicleId: string) {
   const maxKm = Math.max(maxFuelingKm, maxFreightKm);
 
   if (maxKm > 0) {
-    // Protect against KM decreasing — get current vehicle KM
-    const { data: vehicleData } = await supabase.from("vehicles").select("current_km").eq("id", vehicleId).single();
-    const currentKm = vehicleData?.current_km || 0;
-    if (maxKm >= currentKm) {
-      await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
-    }
+    await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
   }
 }
 
@@ -623,9 +618,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
-    if (trip) await updateVehicleKm(trip.vehicleId, f.kmCurrent);
-    else await fetchData();
-  }, [user, data.trips, fetchData, updateVehicleKm]);
+    if (trip) {
+      await recalculateVehicleKm(trip.vehicleId);
+    }
+    await fetchData();
+  }, [user, data.trips, fetchData]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
     if (!isOnline()) {

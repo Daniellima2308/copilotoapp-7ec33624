@@ -116,7 +116,7 @@ const PXDigitalPage = () => {
 
   // Fetch messages for active channel
   useEffect(() => {
-    if (!activeChannel) {
+    if (!activeChannelId) {
       setMessages([]);
       return;
     }

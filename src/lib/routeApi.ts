@@ -1,5 +1,5 @@
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const OSRM_URL = "https://router.project-osrm.org/route/v1/driving";
+const TOMTOM_SEARCH_URL = "https://api.tomtom.com/search/2/geocode";
+const TOMTOM_ROUTING_URL = "https://api.tomtom.com/routing/1/calculateRoute";
 
 interface Coordinates {
   lat: number;
@@ -33,12 +33,17 @@ interface RouteResolution {
 }
 
 function normalizeLocation(value: string): string {
-  return value
+  const normalized = value
     .trim()
     .replace(/\s+-\s+/g, ", ")
     .replace(/\s*,\s*/g, ", ")
     .replace(/\s+/g, " ")
     .replace(/,+$/g, "");
+
+  if (!normalized) return "";
+  if (/\b(brasil|brazil)\b/i.test(normalized)) return normalized;
+
+  return `${normalized}, Brazil`;
 }
 
 function buildLocationCandidates(raw: string): string[] {
@@ -55,37 +60,44 @@ function buildLocationCandidates(raw: string): string[] {
 }
 
 async function geocodeCityDetailed(cityName: string): Promise<GeocodeDiagnostic> {
+  const apiKey = import.meta.env.VITE_TOMTOM_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      coords: null,
+      reason: "Chave da API TomTom ausente. Configure VITE_TOMTOM_API_KEY.",
+    };
+  }
+
   const candidates = buildLocationCandidates(cityName);
   let lastReason = "Localização não encontrada na geocodificação.";
 
   for (const candidate of candidates) {
-    for (const countrySuffix of [", Brasil", ", Brazil"]) {
-      const query = `${candidate}${countrySuffix}`;
+    const query = normalizeLocation(candidate);
 
-      try {
-        const res = await fetch(
-          `${NOMINATIM_URL}?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=br`,
-          { headers: { "Accept-Language": "pt-BR" } },
-        );
+    try {
+      const res = await fetch(
+        `${TOMTOM_SEARCH_URL}/${encodeURIComponent(query)}.json?key=${encodeURIComponent(apiKey)}&limit=1&countrySet=BR&language=pt-BR`,
+      );
 
-        if (!res.ok) {
-          lastReason = `Geocodificação falhou para "${query}" (HTTP ${res.status}).`;
-          continue;
-        }
-
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return {
-            coords: { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) },
-            reason: null,
-            queryUsed: query,
-          };
-        }
-
-        lastReason = `Sem resultado para "${query}".`;
-      } catch (error) {
-        lastReason = `Erro de rede na geocodificação de "${query}": ${error instanceof Error ? error.message : "erro desconhecido"}.`;
+      if (!res.ok) {
+        lastReason = `Geocodificação falhou para "${query}" (HTTP ${res.status}).`;
+        continue;
       }
+
+      const data = await res.json();
+      const position = data?.results?.[0]?.position;
+
+      if (position && typeof position.lat === "number" && typeof position.lon === "number") {
+        return {
+          coords: { lat: position.lat, lon: position.lon },
+          reason: null,
+          queryUsed: query,
+        };
+      }
+
+      lastReason = `Sem resultado para "${query}".`;
+    } catch (error) {
+      lastReason = `Erro de rede na geocodificação de "${query}": ${error instanceof Error ? error.message : "erro desconhecido"}.`;
     }
   }
 
@@ -93,6 +105,14 @@ async function geocodeCityDetailed(cityName: string): Promise<GeocodeDiagnostic>
 }
 
 async function resolveRoute(origin: string, destination: string): Promise<RouteResolution> {
+  const apiKey = import.meta.env.VITE_TOMTOM_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      result: null,
+      reason: "Chave da API TomTom ausente. Configure VITE_TOMTOM_API_KEY.",
+    };
+  }
+
   const [originGeo, destinationGeo] = await Promise.all([
     geocodeCityDetailed(origin),
     geocodeCityDetailed(destination),
@@ -109,7 +129,7 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
 
   try {
     const res = await fetch(
-      `${OSRM_URL}/${originGeo.coords.lon},${originGeo.coords.lat};${destinationGeo.coords.lon},${destinationGeo.coords.lat}?overview=false`,
+      `${TOMTOM_ROUTING_URL}/${originGeo.coords.lat},${originGeo.coords.lon}:${destinationGeo.coords.lat},${destinationGeo.coords.lon}/json?key=${encodeURIComponent(apiKey)}&routeType=fastest&traffic=false`,
     );
 
     if (!res.ok) {
@@ -122,10 +142,12 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
     }
 
     const data = await res.json();
-    if (data.code !== "Ok" || !data.routes?.length) {
+    const routeLengthMeters = data?.routes?.[0]?.summary?.lengthInMeters;
+
+    if (typeof routeLengthMeters !== "number") {
       return {
         result: null,
-        reason: `Roteamento sem rota válida (${data.code || "sem código"}).`,
+        reason: `Roteamento sem rota válida (${data?.error?.description || "sem rota"}).`,
         originQueryUsed: originGeo.queryUsed,
         destinationQueryUsed: destinationGeo.queryUsed,
       };
@@ -133,7 +155,7 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
 
     return {
       result: {
-        distanceKm: Math.round(data.routes[0].distance / 1000),
+        distanceKm: Math.round(routeLengthMeters / 1000),
         originCoords: originGeo.coords,
         destCoords: destinationGeo.coords,
       },

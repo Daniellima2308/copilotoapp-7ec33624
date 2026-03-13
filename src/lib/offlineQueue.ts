@@ -3,7 +3,7 @@ const QUEUE_KEY = "copiloto-offline-queue";
 export interface OfflineAction {
   id: string;
   type: string;
-  payload: any;
+  payload: unknown;
   createdAt: string;
 }
 

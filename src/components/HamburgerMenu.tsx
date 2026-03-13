@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Menu, User, Lock, Wrench, MessageCircle, Lightbulb, LogOut, Wallet } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -167,7 +168,7 @@ export function HamburgerMenu() {
   );
 }
 
-function MenuItem({ icon: Icon, label, onClick }: { icon: any; label: string; onClick: () => void }) {
+function MenuItem({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full rounded-lg p-3 flex items-center gap-3 hover:bg-accent/50 transition-colors">
       <Icon className="w-5 h-5 text-muted-foreground" />

@@ -6,7 +6,9 @@ export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch {
+    // localStorage may be unavailable or contain invalid JSON
+  }
   return { vehicles: [], trips: [], maintenanceServices: [] };
 }
 

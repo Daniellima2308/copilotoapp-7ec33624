@@ -17,7 +17,11 @@ const RadioKnob = ({ totalPositions, currentPosition, onPositionChange }: RadioK
   const rotation = -150 + currentPosition * anglePerPos;
 
   const tryVibrate = useCallback(() => {
-    try { navigator.vibrate?.(10); } catch {}
+    try {
+      navigator.vibrate?.(10);
+    } catch {
+      // vibração pode não estar disponível no dispositivo/navegador
+    }
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {

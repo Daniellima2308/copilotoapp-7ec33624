@@ -232,16 +232,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
 
       if (profileRes.data) {
-        setPersonalExpensesEnabledState((profileRes.data as any).personal_expenses_enabled || false);
+        const profile = profileRes.data as { personal_expenses_enabled: boolean | null };
+        setPersonalExpensesEnabledState(profile.personal_expenses_enabled || false);
       }
 
-      const vehicles: Vehicle[] = (vehiclesRes.data || []).map((v: any) => ({
+      const vehicles: Vehicle[] = (vehiclesRes.data || []).map((v: {
+        id: string; brand: string; model: string; year: number; plate: string;
+        is_fleet_owner: boolean | null; driver_name: string | null; current_km: number | null;
+      }) => ({
         id: v.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
         isFleetOwner: v.is_fleet_owner, driverName: v.driver_name, currentKm: v.current_km || 0,
       }));
 
       const freightsMap = new Map<string, Freight[]>();
-      (freightsRes.data || []).forEach((f: any) => {
+      (freightsRes.data || []).forEach((f: {
+        id: string; trip_id: string; origin: string; destination: string; km_initial: number;
+        gross_value: number; commission_percent: number; commission_value: number; created_at: string;
+      }) => {
         const freight: Freight = { id: f.id, tripId: f.trip_id, origin: f.origin, destination: f.destination,
           kmInitial: f.km_initial, grossValue: f.gross_value, commissionPercent: f.commission_percent,
           commissionValue: f.commission_value, createdAt: f.created_at };
@@ -250,7 +257,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const fuelingsMap = new Map<string, Fueling[]>();
-      (fuelingsRes.data || []).forEach((f: any) => {
+      (fuelingsRes.data || []).forEach((f: {
+        id: string; trip_id: string; station: string; total_value: number; liters: number;
+        price_per_liter: number; km_current: number; full_tank: boolean | null; average: number;
+        date: string; receipt_url: string | null; allocated_value: number | null; original_total_value: number | null;
+      }) => {
         const fueling: Fueling = { id: f.id, tripId: f.trip_id, stationName: f.station, totalValue: f.total_value,
           liters: f.liters, pricePerLiter: f.price_per_liter, kmCurrent: f.km_current, fullTank: f.full_tank,
           average: f.average, date: f.date, receiptUrl: f.receipt_url || undefined,
@@ -260,7 +271,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const expensesMap = new Map<string, Expense[]>();
-      (expensesRes.data || []).forEach((e: any) => {
+      (expensesRes.data || []).forEach((e: {
+        id: string; trip_id: string; category: string; description: string; value: number; date: string; receipt_url: string | null;
+      }) => {
         const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category,
           description: e.description, value: e.value, date: e.date, receiptUrl: e.receipt_url || undefined };
         if (!expensesMap.has(e.trip_id)) expensesMap.set(e.trip_id, []);
@@ -268,14 +281,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const personalExpMap = new Map<string, PersonalExpense[]>();
-      (personalExpRes.data || []).forEach((pe: any) => {
+      (personalExpRes.data || []).forEach((pe: {
+        id: string; trip_id: string; category: string; description: string; value: number; date: string;
+      }) => {
         const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category,
           description: pe.description, value: pe.value, date: pe.date };
         if (!personalExpMap.has(pe.trip_id)) personalExpMap.set(pe.trip_id, []);
         personalExpMap.get(pe.trip_id)!.push(item);
       });
 
-      const trips: Trip[] = (tripsRes.data || []).map((t: any) => ({
+      const trips: Trip[] = (tripsRes.data || []).map((t: {
+        id: string; vehicle_id: string; status: string; created_at: string; finished_at: string | null; estimated_distance: number | null;
+      }) => ({
         id: t.id, vehicleId: t.vehicle_id, status: t.status as TripStatus,
         freights: freightsMap.get(t.id) || [], fuelings: fuelingsMap.get(t.id) || [],
         expenses: expensesMap.get(t.id) || [], personalExpenses: personalExpMap.get(t.id) || [],
@@ -283,7 +300,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         estimatedDistance: t.estimated_distance || 0,
       }));
 
-      const maintenanceServices: MaintenanceService[] = (maintRes.data || []).map((s: any) => ({
+      const maintenanceServices: MaintenanceService[] = (maintRes.data || []).map((s: {
+        id: string; vehicle_id: string; service_name: string; last_change_km: number; interval_km: number; created_at: string;
+      }) => ({
         id: s.id, vehicleId: s.vehicle_id, serviceName: s.service_name,
         lastChangeKm: s.last_change_km, intervalKm: s.interval_km, createdAt: s.created_at,
       }));
@@ -367,7 +386,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setPersonalExpensesEnabled = useCallback(async (val: boolean) => {
     if (!user) return;
     setPersonalExpensesEnabledState(val);
-    await supabase.from("profiles").update({ personal_expenses_enabled: val } as any).eq("user_id", user.id);
+    await supabase.from("profiles").update({ personal_expenses_enabled: val }).eq("user_id", user.id);
   }, [user]);
 
   const addVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
@@ -380,7 +399,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, fetchData]);
 
   const updateVehicle = useCallback(async (id: string, v: Partial<Omit<Vehicle, "id">>) => {
-    const updateData: any = {};
+    const updateData: {
+      brand?: string;
+      model?: string;
+      year?: number;
+      plate?: string;
+      is_fleet_owner?: boolean;
+      driver_name?: string | null;
+      current_km?: number;
+    } = {};
     if (v.brand !== undefined) updateData.brand = v.brand;
     if (v.model !== undefined) updateData.model = v.model;
     if (v.year !== undefined) updateData.year = v.year;
@@ -418,7 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (error || !inserted) throw new Error(error?.message || "Failed to create trip");
     const trip: Trip = { id: inserted.id, vehicleId: inserted.vehicle_id, status: inserted.status as TripStatus,
       freights: [], fuelings: [], expenses: [], personalExpenses: [], createdAt: inserted.created_at, finishedAt: inserted.finished_at,
-      estimatedDistance: (inserted as any).estimated_distance || 0 };
+      estimatedDistance: inserted.estimated_distance || 0 };
     await fetchData();
     return trip;
   }, [user, data.trips, fetchData]);

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Camera, Loader2, Pencil, Phone, Wallet, LogOut, Truck, MapPin, TrendingUp, ChevronLeft,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 const ProfilePage = () => {
@@ -57,8 +58,9 @@ const ProfilePage = () => {
       if (updateError) throw updateError;
       setProfile((p) => ({ ...p, avatar_url: avatarUrl }));
       toast({ title: "Foto atualizada!" });
-    } catch (err: any) {
-      toast({ title: "Erro no upload", description: err.message || "Tente novamente.", variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Tente novamente.";
+      toast({ title: "Erro no upload", description: message, variant: "destructive" });
     }
     setUploadingAvatar(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -251,7 +253,7 @@ const ProfilePage = () => {
   );
 };
 
-function ProfileButton({ icon: Icon, label, onClick }: { icon: any; label: string; onClick: () => void }) {
+function ProfileButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full gradient-card rounded-xl flex items-center gap-3 hover:bg-accent/50 transition-colors px-4" style={{ minHeight: 52 }}>
       <Icon className="w-5 h-5 text-muted-foreground" />
@@ -260,7 +262,7 @@ function ProfileButton({ icon: Icon, label, onClick }: { icon: any; label: strin
   );
 }
 
-function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="gradient-card rounded-xl p-3 text-center">
       <Icon className="w-4 h-4 text-primary mx-auto mb-1" />

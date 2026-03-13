@@ -67,7 +67,7 @@ serve(async (req) => {
       
       // If toll info is in a different structure
       if (tollCost === 0 && route?.tolls) {
-        tollCost = route.tolls.reduce((sum: number, t: any) => sum + (t.cashCost ?? t.tagCost ?? 0), 0);
+        tollCost = route.tolls.reduce((sum: number, t: { cashCost?: number; tagCost?: number }) => sum + (t.cashCost ?? t.tagCost ?? 0), 0);
       }
     }
 

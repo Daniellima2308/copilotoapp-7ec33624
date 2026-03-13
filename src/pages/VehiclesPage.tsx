@@ -1,12 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Truck, User, Wrench, Settings2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "@/hooks/use-toast";
-import { isValidBrazilianPlate, normalizePlateInput, parseDecimal, sanitizeIntegerInput } from "@/lib/inputMasks";
-import { getVehicleProfile, setVehicleProfile, VEHICLE_PROFILE_TEMPLATES } from "@/lib/vehicleProfiles";
 
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
@@ -33,70 +30,22 @@ const VehiclesPage = () => {
   const [isFleetOwner, setIsFleetOwner] = useState(false);
   const [driverName, setDriverName] = useState("");
 
-  const [profileModalVehicleId, setProfileModalVehicleId] = useState<string | null>(null);
-  const [profileDraft, setProfileDraft] = useState<string>("custom");
-
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
-
-  const profileLabelsByVehicle = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const v of data.vehicles) {
-      const profile = getVehicleProfile(v.id);
-      if (profile) map.set(v.id, profile.label);
-    }
-    return map;
-  }, [data.vehicles]);
 
   const handleBrandChange = (val: string) => { setBrand(val); setModel(""); setCustomModel(""); };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalModel = model === "__custom" ? customModel : model;
-    const safePlate = normalizePlateInput(plate);
-    const parsedYear = Number.parseInt(sanitizeIntegerInput(year), 10);
-    const parsedKm = parseDecimal(currentKm);
-
-    if (!brand || !finalModel || !year || !plate || !currentKm) {
-      toast({ title: "Dados incompletos", description: "Preencha todos os campos obrigatórios.", variant: "destructive" });
-      return;
-    }
-    if (!isValidBrazilianPlate(safePlate)) {
-      toast({ title: "Placa inválida", description: "Use padrão Mercosul (ABC1D23) ou antigo (ABC1234).", variant: "destructive" });
-      return;
-    }
-    if (!Number.isFinite(parsedYear) || parsedYear < 1950 || parsedYear > new Date().getFullYear() + 1) {
-      toast({ title: "Ano inválido", description: "Confira o ano do veículo.", variant: "destructive" });
-      return;
-    }
-    if (parsedKm < 0) {
-      toast({ title: "KM inválido", description: "O KM não pode ser negativo.", variant: "destructive" });
-      return;
-    }
-    if (isFleetOwner && !driverName.trim()) {
-      toast({ title: "Nome do motorista", description: "Informe o motorista para veículo de frota.", variant: "destructive" });
-      return;
-    }
-
+    if (!brand || !finalModel || !year || !plate || !currentKm) return;
+    if (isFleetOwner && !driverName.trim()) return;
     addVehicle({
-      brand, model: finalModel, year: parsedYear, plate: safePlate,
-      currentKm: parsedKm,
+      brand, model: finalModel, year: parseInt(year), plate: plate.toUpperCase(),
+      currentKm: parseFloat(currentKm),
       isFleetOwner, driverName: isFleetOwner ? driverName.trim() : undefined,
     });
     setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm("");
     setIsFleetOwner(false); setDriverName(""); setShowForm(false);
-  };
-
-  const openProfileModal = (vehicleId: string) => {
-    const current = getVehicleProfile(vehicleId);
-    setProfileDraft(current?.id || "custom");
-    setProfileModalVehicleId(vehicleId);
-  };
-
-  const saveVehicleProfile = () => {
-    if (!profileModalVehicleId) return;
-    setVehicleProfile(profileModalVehicleId, profileDraft);
-    setProfileModalVehicleId(null);
-    toast({ title: "Perfil técnico aplicado", description: "As recomendações de manutenção vão usar esse perfil." });
   };
 
   const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
@@ -123,13 +72,9 @@ const VehiclesPage = () => {
                     <User className="w-3 h-3" /> {v.driverName}
                   </p>
                 )}
-                <p className="text-[10px] text-info mt-0.5">Perfil técnico: {profileLabelsByVehicle.get(v.id) || "Não configurado"}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => openProfileModal(v.id)} className="p-2 rounded-lg hover:bg-accent transition-colors" title="Configurar Perfil Técnico">
-                <Settings2 className="w-4 h-4 text-info" />
-              </button>
               <button onClick={() => navigate(`/maintenance?vehicleId=${v.id}`)}
                 className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
                 <Wrench className="w-4 h-4 text-muted-foreground" />
@@ -159,9 +104,9 @@ const VehiclesPage = () => {
               {model === "__custom" && (
                 <input placeholder="Digite o modelo" value={customModel} onChange={(e) => setCustomModel(e.target.value)} className={`${inputClass} col-span-2`} />
               )}
-              <input placeholder="Ano" inputMode="numeric" value={year} onChange={(e) => setYear(sanitizeIntegerInput(e.target.value).slice(0, 4))} className={inputClass} />
-              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(normalizePlateInput(e.target.value))} maxLength={7} className={`${inputClass} uppercase font-mono`} />
-              <input placeholder="KM Atual do Painel" inputMode="decimal" value={currentKm} onChange={(e) => setCurrentKm(e.target.value.replace(/,/g, ".").replace(/[^\d.]/g, ""))} className={`${inputClass} col-span-2`} />
+              <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)} className={inputClass} />
+              <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7} className={`${inputClass} uppercase font-mono`} />
+              <input placeholder="KM Atual do Painel" type="number" value={currentKm} onChange={(e) => setCurrentKm(e.target.value)} className={`${inputClass} col-span-2`} />
             </div>
             <div className="flex items-center justify-between py-2">
               <div>
@@ -186,26 +131,6 @@ const VehiclesPage = () => {
           </button>
         )}
       </div>
-
-      {profileModalVehicleId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setProfileModalVehicleId(null)}>
-          <div className="bg-card rounded-xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold">Perfil técnico do caminhão</h3>
-            <select value={profileDraft} onChange={(e) => setProfileDraft(e.target.value)} className="input-field w-full">
-              {VEHICLE_PROFILE_TEMPLATES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
-            <div className="text-xs text-muted-foreground bg-secondary rounded-lg p-3">
-              Esse perfil define parâmetros de consumo e recomendações de manutenção para acelerar a operação no trecho.
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={saveVehicleProfile} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Aplicar Perfil</button>
-              <button type="button" onClick={() => setProfileModalVehicleId(null)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -8,8 +8,6 @@ import {
   Camera, Loader2, Pencil, Phone, Wallet, LogOut, Truck, MapPin, TrendingUp, ChevronLeft,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { formatPhoneInput } from "@/lib/inputMasks";
-import { CopilotoOperationMode, getOperationMode, setOperationMode } from "@/lib/operationMode";
 
 const ProfilePage = () => {
   const { user, signOut } = useAuth();
@@ -27,10 +25,8 @@ const ProfilePage = () => {
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [operationMode, setOperationModeState] = useState<CopilotoOperationMode>("driver");
 
   useEffect(() => {
-    setOperationModeState(getOperationMode());
     if (!user) return;
     supabase.from("profiles").select("display_name, avatar_url, phone").eq("user_id", user.id).single()
       .then(({ data }) => {
@@ -193,30 +189,6 @@ const ProfilePage = () => {
           </div>
         </section>
 
-        {/* Perfil de Acesso */}
-        <section>
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Perfil de Acesso</h2>
-          <div className="gradient-card rounded-xl p-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => { setOperationMode("driver"); setOperationModeState("driver"); }}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${operationMode === "driver" ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              style={{ minHeight: 44 }}
-            >
-              Motorista
-            </button>
-            <button
-              type="button"
-              onClick={() => { setOperationMode("manager"); setOperationModeState("manager"); }}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${operationMode === "manager" ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              style={{ minHeight: 44 }}
-            >
-              Dono/Gestor
-            </button>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-2">Motorista foca na operação do trecho. Dono/Gestor vê visão consolidada de histórico e financeiro.</p>
-        </section>
-
         {/* Preferences */}
         <section>
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Preferências</h2>
@@ -267,7 +239,7 @@ const ProfilePage = () => {
             type="tel"
             placeholder="(11) 99999-9999"
             value={editPhone}
-            onChange={(e) => setEditPhone(formatPhoneInput(e.target.value))}
+            onChange={(e) => setEditPhone(e.target.value)}
             className="input-field w-full text-base py-3"
           />
           <button onClick={handleUpdatePhone} disabled={submitting} className="w-full gradient-profit text-primary-foreground rounded-xl font-bold disabled:opacity-50" style={{ minHeight: 52 }}>

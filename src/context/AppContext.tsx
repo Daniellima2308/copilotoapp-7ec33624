@@ -3,9 +3,8 @@ import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, Maintena
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";
-import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCachedData, getCachedData, updateQueueAction } from "@/lib/offlineQueue";
+import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCachedData, getCachedData } from "@/lib/offlineQueue";
 import { toast } from "@/hooks/use-toast";
-import { resolveReceiptUrl } from "@/lib/offlineSync";
 
 interface AppContextType {
   data: AppData;
@@ -309,30 +308,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const queue = getOfflineQueue();
       if (queue.length === 0 || !user) return;
 
-      let syncedCount = 0;
       let syncErrors = 0;
-
       for (const action of queue) {
         try {
           switch (action.type) {
-            case "addExpense": {
-              const normalizedReceiptUrl = await resolveReceiptUrl(user.id, action.payload.receipt_url);
-              await supabase.from("expenses").insert({
-                ...action.payload,
-                receipt_url: normalizedReceiptUrl,
-                user_id: user.id,
-              });
+            case "addExpense":
+              await supabase.from("expenses").insert({ ...action.payload, user_id: user.id });
               break;
-            }
-            case "addFueling": {
-              const normalizedReceiptUrl = await resolveReceiptUrl(user.id, action.payload.receipt_url);
-              await supabase.from("fuelings").insert({
-                ...action.payload,
-                receipt_url: normalizedReceiptUrl,
-                user_id: user.id,
-              });
+            case "addFueling":
+              await supabase.from("fuelings").insert({ ...action.payload, user_id: user.id });
               break;
-            }
             case "addPersonalExpense":
               await supabase.from("personal_expenses").insert({ ...action.payload, user_id: user.id });
               break;
@@ -359,30 +344,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
               break;
           }
-
-          syncedCount++;
           removeFromQueue(action.id);
         } catch (err) {
           console.error("Failed to sync action:", action, err);
           syncErrors++;
-          const message = err instanceof Error ? err.message : "Unknown sync error";
-          updateQueueAction(action.id, {
-            retryCount: (action.retryCount || 0) + 1,
-            lastError: message,
-          });
         }
       }
-
       if (syncErrors === 0) {
-        toast({ title: "Dados sincronizados!", description: `${syncedCount} ação(ões) offline enviadas para a nuvem.` });
+        toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
       } else {
-        toast({
-          title: "Sincronização parcial",
-          description: `${syncedCount} sincronizadas, ${syncErrors} com falha. O app tentará novamente ao voltar o sinal.`,
-          variant: "destructive",
-        });
+        toast({ title: "Sincronização parcial", description: `${syncErrors} ação(ões) falharam. Serão tentadas novamente.`, variant: "destructive" });
       }
-
       await fetchData();
     };
 

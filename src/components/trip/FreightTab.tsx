@@ -3,8 +3,6 @@ import { Trip, Freight } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import { MapPin, Plus, Trash2, Ruler } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
-import { toast } from "@/hooks/use-toast";
-import { normalizeDecimalInput, parseDecimal } from "@/lib/inputMasks";
 
 interface FreightTabProps {
   trip: Trip;
@@ -24,24 +22,8 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const kmValue = parseDecimal(km);
-    const grossValue = parseDecimal(gross);
-    const commissionPercent = parseDecimal(comm);
-
-    if (!origin || !dest || !km || !gross) {
-      toast({ title: "Campos obrigatórios", description: "Preencha origem, destino, KM e valor do frete.", variant: "destructive" });
-      return;
-    }
-    if (kmValue <= 0 || grossValue <= 0) {
-      toast({ title: "Valores inválidos", description: "KM e valor bruto devem ser maiores que zero.", variant: "destructive" });
-      return;
-    }
-    if (commissionPercent < 0 || commissionPercent > 100) {
-      toast({ title: "Comissão inválida", description: "A comissão deve ficar entre 0% e 100%.", variant: "destructive" });
-      return;
-    }
-
-    addFreight(trip.id, { origin, destination: dest, kmInitial: kmValue, grossValue, commissionPercent, createdAt: new Date().toISOString() });
+    if (!origin || !dest || !km || !gross) return;
+    addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent: parseFloat(comm), createdAt: new Date().toISOString() });
     setOrigin(""); setDest(""); setKm(""); setGross(""); setComm("17"); setShowForm(false);
   };
 
@@ -69,9 +51,9 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
           <div className="grid grid-cols-2 gap-3">
             <CityAutocomplete placeholder="Origem" value={origin} onChange={setOrigin} className="input-field" />
             <CityAutocomplete placeholder="Destino" value={dest} onChange={setDest} className="input-field" />
-            <input placeholder="KM Inicial" inputMode="decimal" value={km} onChange={(e) => setKm(normalizeDecimalInput(e.target.value))} className="input-field" />
-            <input placeholder="Valor Bruto (R$)" inputMode="decimal" value={gross} onChange={(e) => setGross(normalizeDecimalInput(e.target.value))} className="input-field" />
-            <input placeholder="Comissão (%)" inputMode="decimal" value={comm} onChange={(e) => setComm(normalizeDecimalInput(e.target.value))} className="input-field" />
+            <input placeholder="KM Inicial" type="number" min="0" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" />
+            <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
+            <input placeholder="Comissão (%)" type="number" step="0.1" min="0" max="100" value={comm} onChange={(e) => setComm(e.target.value)} className="input-field" />
           </div>
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>

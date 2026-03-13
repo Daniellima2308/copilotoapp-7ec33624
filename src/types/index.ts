@@ -1,5 +1,3 @@
-export type OperationRole = "driver" | "manager";
-
 export interface Vehicle {
   id: string;
   brand: string;
@@ -9,7 +7,6 @@ export interface Vehicle {
   isFleetOwner?: boolean;
   driverName?: string;
   currentKm: number;
-  technicalProfileId?: string;
 }
 
 export interface MaintenanceService {

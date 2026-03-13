@@ -5,8 +5,6 @@ import { Fuel, Droplets, Pencil, Trash2, Plus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ReceiptUpload } from "@/components/ReceiptUpload";
-import { toast } from "@/hooks/use-toast";
-import { normalizeDecimalInput, parseDecimal } from "@/lib/inputMasks";
 
 interface FuelTabProps {
   trip: Trip;
@@ -36,30 +34,20 @@ function FuelForm({
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>(initial?.receiptUrl);
 
   const calcPricePerLiter = () => {
-    const v = parseDecimal(value);
-    const l = parseDecimal(liters);
+    const v = parseFloat(value);
+    const l = parseFloat(liters);
     if (v > 0 && l > 0) return (v / l).toFixed(3);
     return "";
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const totalValue = parseDecimal(value);
-    const litersValue = parseDecimal(liters);
-    const kmCurrent = parseDecimal(kmCur);
-    if (!station.trim() || !value || !liters || !kmCur) {
-      toast({ title: "Campos obrigatórios", description: "Preencha posto, valor, litros e odômetro.", variant: "destructive" });
-      return;
-    }
-    if (totalValue <= 0 || litersValue <= 0 || kmCurrent <= 0) {
-      toast({ title: "Valores inválidos", description: "Valor, litros e KM devem ser maiores que zero.", variant: "destructive" });
-      return;
-    }
+    if (!station || !value || !liters || !kmCur) return;
     onSubmit({
-      stationName: station.trim(),
-      totalValue,
-      liters: litersValue,
-      kmCurrent,
+      stationName: station,
+      totalValue: parseFloat(value),
+      liters: parseFloat(liters),
+      kmCurrent: parseFloat(kmCur),
       date,
       fullTank,
       receiptUrl,
@@ -70,9 +58,9 @@ function FuelForm({
     <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <input placeholder="Nome do Posto" value={station} onChange={(e) => setStation(e.target.value)} className="input-field col-span-2" />
-        <input placeholder="Valor Total (R$)" inputMode="decimal" value={value} onChange={(e) => setValue(normalizeDecimalInput(e.target.value))} className="input-field" />
-        <input placeholder="Litros" inputMode="decimal" value={liters} onChange={(e) => setLiters(normalizeDecimalInput(e.target.value))} className="input-field" />
-        <input placeholder="Odômetro Atual (KM)" inputMode="decimal" value={kmCur} onChange={(e) => setKmCur(normalizeDecimalInput(e.target.value))} className="input-field" />
+        <input placeholder="Valor Total (R$)" type="number" step="0.01" min="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
+        <input placeholder="Litros" type="number" step="0.01" min="0.01" value={liters} onChange={(e) => setLiters(e.target.value)} className="input-field" />
+        <input placeholder="Odômetro Atual (KM)" type="number" min="0" value={kmCur} onChange={(e) => setKmCur(e.target.value)} className="input-field" />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
       </div>
       {calcPricePerLiter() && (

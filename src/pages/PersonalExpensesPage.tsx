@@ -4,8 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Wallet } from "lucide-react";
 import { PERSONAL_EXPENSE_LABELS, PersonalExpenseCategory } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/calculations";
-import { toast } from "@/hooks/use-toast";
-import { formatCurrencyInput, parseCurrencyInput } from "@/lib/inputMasks";
 
 const PersonalExpensesPage = () => {
   const { data, getActiveTrips, addPersonalExpense, deletePersonalExpense } = useApp();
@@ -38,13 +36,9 @@ const PersonalExpensesPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const numericValue = parseCurrencyInput(value);
-    if (numericValue <= 0) {
-      toast({ title: "Valor inválido", description: "Informe um gasto maior que R$ 0,00.", variant: "destructive" });
-      return;
-    }
+    if (!value) return;
     const finalDesc = desc.trim() || PERSONAL_EXPENSE_LABELS[cat];
-    addPersonalExpense(activeTrip.id, { category: cat, description: finalDesc, value: numericValue, date });
+    addPersonalExpense(activeTrip.id, { category: cat, description: finalDesc, value: parseFloat(value), date });
     setDesc(""); setValue(""); setShowForm(false);
   };
 
@@ -95,7 +89,7 @@ const PersonalExpensesPage = () => {
             </select>
             <input placeholder="Descrição (opcional)" value={desc} onChange={(e) => setDesc(e.target.value)} className="input-field" />
             <div className="grid grid-cols-2 gap-3">
-              <input placeholder="Valor (R$)" inputMode="numeric" value={value} onChange={(e) => setValue(formatCurrencyInput(e.target.value))} className="input-field" />
+              <input placeholder="Valor (R$)" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className="input-field" />
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
             </div>
             <div className="flex gap-2">

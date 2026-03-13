@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Wallet } from "lucide-react";
 import { PERSONAL_EXPENSE_LABELS, PersonalExpenseCategory } from "@/types";

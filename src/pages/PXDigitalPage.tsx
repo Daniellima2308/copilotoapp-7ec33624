@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/auth-context";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { toast } from "@/hooks/use-toast";
@@ -70,6 +70,7 @@ const PXDigitalPage = () => {
   });
 
   const activeChannel = filteredChannels[knobPosition] || null;
+  const activeChannelId = activeChannel?.id;
 
   // Fetch profile
   useEffect(() => {
@@ -115,7 +116,7 @@ const PXDigitalPage = () => {
 
   // Fetch messages for active channel
   useEffect(() => {
-    if (!activeChannel) {
+    if (!activeChannelId) {
       setMessages([]);
       return;
     }
@@ -124,7 +125,7 @@ const PXDigitalPage = () => {
       const { data } = await supabase
         .from("px_messages")
         .select("*")
-        .eq("channel_id", activeChannel.id)
+        .eq("channel_id", activeChannelId)
         .gte("created_at", twoHoursAgo)
         .order("created_at", { ascending: true })
         .limit(100);
@@ -133,14 +134,14 @@ const PXDigitalPage = () => {
     fetchMessages();
 
     const channel = supabase
-      .channel(`px-${activeChannel.id}`)
+      .channel(`px-${activeChannelId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "px_messages",
-          filter: `channel_id=eq.${activeChannel.id}`,
+          filter: `channel_id=eq.${activeChannelId}`,
         },
         (payload) => {
           setMessages((prev) => [...prev, payload.new as PxMessage]);
@@ -151,7 +152,7 @@ const PXDigitalPage = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeChannel?.id]);
+  }, [activeChannelId]);
 
   // Fetch mural posts (today only) + realtime
   useEffect(() => {

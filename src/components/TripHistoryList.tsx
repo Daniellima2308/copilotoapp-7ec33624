@@ -1,5 +1,5 @@
 import { Trip } from "@/types";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import { getTripGrossRevenue, getTripNetRevenue, getLastDestination, formatCurrency, formatDate } from "@/lib/calculations";
 import { CheckCircle, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";

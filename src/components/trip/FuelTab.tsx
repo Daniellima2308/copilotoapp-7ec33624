@@ -133,7 +133,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return (
                           <div>
                             <p className="text-xs font-semibold text-info">Marco Zero</p>
-                            <p className="text-[10px] italic text-muted-foreground">A média será calculada no próximo abastecimento</p>
+                            <p className="text-[10px] italic text-muted-foreground">A média ainda não está disponível. Ela aparece depois de abastecimentos suficientes.</p>
                           </div>
                         );
                       }
@@ -141,7 +141,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
                       }
                       if (!isFullTank) {
-                        return <p className="text-xs italic text-warning">Média Pendente (Tanque Parcial)</p>;
+                        return <p className="text-xs italic text-warning">Média ainda não disponível</p>;
                       }
                       return null;
                     })()}

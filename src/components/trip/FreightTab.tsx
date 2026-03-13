@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trip, Freight } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
-import { MapPin, Plus, Trash2, Ruler } from "lucide-react";
+import { MapPin, Plus, Trash2, Ruler, Wallet } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 
 interface FreightTabProps {
@@ -30,19 +30,31 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
   return (
     <div className="space-y-2">
       {trip.freights.map((f: Freight) => (
-        <div key={f.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">{f.origin} → {f.destination}</p>
-            <div className="flex items-center gap-3 mt-0.5">
-              <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-                <Ruler className="w-3 h-3" /> {formatNumber(f.kmInitial)} km
-              </span>
-              <span className="text-xs text-muted-foreground">Comissão: {formatCurrency(f.commissionValue)}</span>
+        <div key={f.id} className="gradient-card rounded-xl p-3 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold leading-tight flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{f.origin} → {f.destination}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">Trecho cadastrado neste frete.</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold font-mono text-profit">{formatCurrency(f.grossValue)}</span>
             {isOpen && <button onClick={() => deleteFreight(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-md bg-secondary/60 p-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Bruto</p>
+              <p className="text-sm font-mono font-bold text-profit">{formatCurrency(f.grossValue)}</p>
+            </div>
+            <div className="rounded-md bg-secondary/60 p-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Wallet className="w-3 h-3" />Comissão</p>
+              <p className="text-sm font-mono font-bold">{formatCurrency(f.commissionValue)}</p>
+            </div>
+            <div className="rounded-md bg-secondary/60 p-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Ruler className="w-3 h-3" />KM inicial</p>
+              <p className="text-sm font-mono font-bold">{formatNumber(f.kmInitial)} km</p>
+            </div>
           </div>
         </div>
       ))}

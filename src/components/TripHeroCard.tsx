@@ -54,6 +54,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
             </div>
             <span className="font-bold text-primary">{Math.round(progressPercent)}%</span>
           </div>
+          <p className="text-[10px] text-muted-foreground">Progresso usando a rota cadastrada.</p>
         </div>
       )}
     </div>

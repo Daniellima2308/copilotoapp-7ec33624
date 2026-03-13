@@ -97,7 +97,7 @@ const PXDigitalPage = () => {
         const inviteId = sessionStorage.getItem("px_invite_channel");
         if (inviteId) {
           sessionStorage.removeItem("px_invite_channel");
-          const ch = data.find((c: any) => c.id === inviteId);
+          const ch = data.find((c: { id: string }) => c.id === inviteId);
           if (ch) {
             setLedCategory("LNK");
             // knob position will be set after filter
@@ -175,7 +175,7 @@ const PXDigitalPage = () => {
         .select("post_id")
         .eq("user_id", user.id)
         .then(({ data }) => {
-          if (data) setLikedPosts(new Set(data.map((l: any) => l.post_id)));
+          if (data) setLikedPosts(new Set(data.map((l: { post_id: string }) => l.post_id)));
         });
     }
 

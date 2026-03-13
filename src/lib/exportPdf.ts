@@ -8,6 +8,12 @@ import {
   getLastDestination,
 } from "@/lib/calculations";
 
+type JsPdfWithTable = jsPDF & { lastAutoTable?: { finalY: number } };
+
+function getLastAutoTableY(doc: jsPDF, fallbackY: number): number {
+  return (doc as JsPdfWithTable).lastAutoTable?.finalY ?? fallbackY;
+}
+
 function getVehicleLabel(vehicles: Vehicle[], vehicleId: string): string {
   const v = vehicles.find((v) => v.id === vehicleId);
   return v ? `${v.brand} ${v.model} - ${v.plate}` : "Veículo desconhecido";
@@ -73,7 +79,7 @@ function addTripSummary(doc: jsPDF, trip: Trip, vehicles: Vehicle[], startY: num
     headStyles: { fillColor: [34, 34, 34], textColor: [200, 200, 200], fontStyle: "bold" },
     margin: { left: 14, right: 14 },
   });
-  y = (doc as any).lastAutoTable.finalY + 5;
+  y = getLastAutoTableY(doc, y) + 5;
 
   // Freights
   if (trip.freights.length > 0) {
@@ -93,7 +99,7 @@ function addTripSummary(doc: jsPDF, trip: Trip, vehicles: Vehicle[], startY: num
       headStyles: { fillColor: [34, 34, 34], textColor: [200, 200, 200] },
       margin: { left: 14, right: 14 },
     });
-    y = (doc as any).lastAutoTable.finalY + 5;
+    y = getLastAutoTableY(doc, y) + 5;
   }
 
   // Fuelings
@@ -115,7 +121,7 @@ function addTripSummary(doc: jsPDF, trip: Trip, vehicles: Vehicle[], startY: num
       headStyles: { fillColor: [34, 34, 34], textColor: [200, 200, 200] },
       margin: { left: 14, right: 14 },
     });
-    y = (doc as any).lastAutoTable.finalY + 5;
+    y = getLastAutoTableY(doc, y) + 5;
   }
 
   // Expenses
@@ -136,7 +142,7 @@ function addTripSummary(doc: jsPDF, trip: Trip, vehicles: Vehicle[], startY: num
       headStyles: { fillColor: [34, 34, 34], textColor: [200, 200, 200] },
       margin: { left: 14, right: 14 },
     });
-    y = (doc as any).lastAutoTable.finalY + 5;
+    y = getLastAutoTableY(doc, y) + 5;
   }
 
   return y;
@@ -172,7 +178,7 @@ export function exportMultipleTripsPdf(trips: Trip[], vehicles: Vehicle[], perio
     margin: { left: 14, right: 14 },
   });
 
-  let y = (doc as any).lastAutoTable.finalY + 10;
+  let y = getLastAutoTableY(doc, 54) + 10;
 
   trips.forEach((trip, i) => {
     if (y > 240) {

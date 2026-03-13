@@ -8,7 +8,7 @@ const NewTripPage = () => {
   const { data, addTrip } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
-  const preSelectedVehicleId = (location.state as any)?.preSelectedVehicleId;
+  const preSelectedVehicleId = (location.state as { preSelectedVehicleId?: string } | null)?.preSelectedVehicleId;
 
   const busyVehicleIds = new Set(
     data.trips.filter(t => t.status === "open").map(t => t.vehicleId)

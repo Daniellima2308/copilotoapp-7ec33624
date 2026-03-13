@@ -49,8 +49,9 @@ export function ReceiptUpload({ value, onChange }: ReceiptUploadProps) {
       const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(filePath);
       onChange(urlData.publicUrl);
       toast({ title: "Recibo anexado com sucesso!" });
-    } catch (err: any) {
-      toast({ title: "Erro no upload", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Falha no upload.";
+      toast({ title: "Erro no upload", description: message, variant: "destructive" });
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";

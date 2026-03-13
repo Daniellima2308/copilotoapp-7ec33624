@@ -51,7 +51,7 @@ function FuelForm({
       date,
       fullTank,
       receiptUrl,
-    } as any);
+    });
   };
 
   return (
@@ -86,12 +86,12 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
 
-  const handleAdd = (data: any) => {
+  const handleAdd = (data: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     addFueling(trip.id, data);
     setShowNewForm(false);
   };
 
-  const handleUpdate = (fuelingId: string, data: any) => {
+  const handleUpdate = (fuelingId: string, data: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     updateFueling(trip.id, fuelingId, data);
     setExpandedId(null);
   };
@@ -116,7 +116,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                     <p className="text-sm font-medium">{f.stationName}</p>
                     <p className="text-xs text-muted-foreground">{formatNumber(f.liters)}L • R$ {formatNumber(f.pricePerLiter)}/L</p>
                     {(() => {
-                      const freightKms = trip.freights.map((fr: any) => fr.kmInitial).filter((k: number) => k > 0);
+                      const freightKms = trip.freights.map((fr) => fr.kmInitial).filter((k: number) => k > 0);
                       const firstFuelingKm = trip.fuelings[0]?.kmCurrent ?? f.kmCurrent;
                       const tripStartKm = freightKms.length > 0 ? Math.min(...freightKms, firstFuelingKm) : firstFuelingKm;
                       const fIdx = trip.fuelings.findIndex((fu: Fueling) => fu.id === f.id);

@@ -1,40 +1,37 @@
 import { Trip, Vehicle } from "@/types";
-import { getTripTotalKm, formatNumber, formatDate } from "@/lib/calculations";
+import { formatDate, formatNumber, getTripLatestCheckpointKm } from "@/lib/calculations";
 import { Gauge, MapPin } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { getCurrentFreight } from "@/lib/freightStatus";
+import { calculateEta } from "@/lib/freightAnalysis";
 
 interface TripHeroCardProps {
   trip: Trip;
   vehicle: Vehicle | undefined;
 }
 
+const AVG_SPEED_KMH = 65;
+
 export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
   const currentKm = vehicle?.currentKm || 0;
-  const totalKm = getTripTotalKm(trip);
-  const estimated = trip.estimatedDistance || 0;
-  const hasActualKm = totalKm > 0;
-  const hasEstimatedKm = estimated > 0;
-  const progressPercent = hasEstimatedKm && hasActualKm ? Math.min(100, (totalKm / estimated) * 100) : 0;
+  const currentFreight = getCurrentFreight(trip);
 
-  const kmLabel = hasEstimatedKm
-    ? `${formatNumber(totalKm)} / ${formatNumber(estimated)} km`
-    : `${formatNumber(totalKm)} km rodados`;
+  const tripLatestKm = getTripLatestCheckpointKm(trip);
+  const effectiveCurrentKm = Math.max(currentKm, tripLatestKm);
 
-  const statusLabel = hasEstimatedKm
-    ? `${Math.round(progressPercent)}%`
-    : hasActualKm
-      ? "Sem rota estimada"
-      : "Aguardando KM";
+  const freightEstimated = currentFreight?.estimatedDistance || 0;
+  const rawProgressKm = currentFreight ? effectiveCurrentKm - currentFreight.kmInitial : 0;
+  const progressedKm = Math.max(0, rawProgressKm);
+  const cappedProgressKm = freightEstimated > 0 ? Math.min(progressedKm, freightEstimated) : progressedKm;
+  const remainingKm = freightEstimated > 0 ? Math.max(0, freightEstimated - cappedProgressKm) : 0;
+  const progressPercent = freightEstimated > 0 ? Math.min(100, (cappedProgressKm / freightEstimated) * 100) : 0;
 
-  const helperText = hasEstimatedKm
-    ? "Progresso usando a rota cadastrada."
-    : hasActualKm
-      ? "Sem rota estimada para comparar no momento."
-      : "Registre KM em frete ou abastecimento para acompanhar o progresso.";
+  const eta = remainingKm > 0 ? calculateEta(remainingKm, AVG_SPEED_KMH) : null;
+
+  const shouldShowEta = !!currentFreight && freightEstimated > 0;
 
   return (
     <div className="gradient-card rounded-xl p-4 space-y-3">
-      {/* Vehicle info */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-foreground">
@@ -47,7 +44,6 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
             <span className="text-xs text-muted-foreground">{formatDate(trip.createdAt)}</span>
           </div>
         </div>
-        {/* Odometer */}
         <div className="text-right">
           <div className="flex items-center gap-1.5 justify-end text-muted-foreground mb-0.5">
             <Gauge className="w-3.5 h-3.5" />
@@ -59,20 +55,40 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
         </div>
       </div>
 
-      {/* Progress */}
-      <div className="space-y-1.5">
-        <Progress value={progressPercent} className="h-2.5 bg-secondary" />
-        <div className="flex items-center justify-between text-[11px]">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <MapPin className="w-3 h-3" />
-            <span>
-              <span className="font-semibold text-foreground">{kmLabel}</span>
-            </span>
-          </div>
-          <span className="font-bold text-primary">{statusLabel}</span>
+      {currentFreight ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-primary">Previsão do frete atual</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <MapPin className="w-3 h-3" /> {currentFreight.origin} → {currentFreight.destination}
+          </p>
+
+          {shouldShowEta ? (
+            <>
+              <Progress value={progressPercent} className="h-2.5 bg-secondary" />
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-md bg-secondary/60 p-2">
+                  <p className="text-muted-foreground">Tempo restante</p>
+                  <p className="font-bold text-foreground">{eta?.durationLabel ?? "Chegando"}</p>
+                </div>
+                <div className="rounded-md bg-secondary/60 p-2">
+                  <p className="text-muted-foreground">Chegada prevista</p>
+                  <p className="font-bold text-foreground">{eta?.arrivalLabel ?? "Agora"}</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {formatNumber(cappedProgressKm)} / {formatNumber(freightEstimated)} km no frete em andamento.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">Frete em andamento sem distância estimada para calcular previsão.</p>
+          )}
         </div>
-        <p className="text-[10px] text-muted-foreground">{helperText}</p>
-      </div>
+      ) : (
+        <div className="rounded-lg bg-secondary/50 p-3">
+          <p className="text-xs font-semibold text-foreground">Sem frete em andamento para calcular previsão.</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Inicie um frete na lista abaixo para liberar ETA no hero.</p>
+        </div>
+      )}
     </div>
   );
 }

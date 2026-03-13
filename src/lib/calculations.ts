@@ -35,6 +35,17 @@ export function getTripTotalKm(trip: Trip): number {
   return total > 0 ? total : 0;
 }
 
+
+export function getTripLatestCheckpointKm(trip: Trip): number {
+  const checkpoints = [
+    ...trip.fuelings.map((f) => f.kmCurrent),
+    ...trip.freights.map((f) => f.kmInitial),
+  ].filter((km) => km > 0);
+
+  if (checkpoints.length === 0) return 0;
+  return Math.max(...checkpoints);
+}
+
 export function getTripAverageConsumption(trip: Trip): number {
   // Only consider fuelings with fullTank that have a calculated average
   const fullTankFuelings = trip.fuelings.filter((f) => (f.fullTank ?? true) && f.average > 0);

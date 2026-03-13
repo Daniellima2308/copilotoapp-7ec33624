@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Trip, Freight, Vehicle } from "@/types";
+import { Trip, Freight, Vehicle, FREIGHT_STATUS_LABELS } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
-import { MapPin, Plus, Trash2, Ruler, Wallet } from "lucide-react";
+import { CheckCircle2, MapPin, PlayCircle, Plus, Trash2, Ruler, Wallet } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import {
   canEditCommissionPercentForFreight,
@@ -18,11 +18,13 @@ interface FreightTabProps {
   isOpen: boolean;
   showForm: boolean;
   setShowForm: (v: boolean) => void;
-  addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
+  addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
+  startFreight: (tripId: string, freightId: string) => Promise<void>;
+  completeFreight: (tripId: string, freightId: string) => Promise<void>;
 }
 
-export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFreight, deleteFreight }: FreightTabProps) {
+export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFreight, deleteFreight, startFreight, completeFreight }: FreightTabProps) {
   const [origin, setOrigin] = useState("");
   const [dest, setDest] = useState("");
   const [km, setKm] = useState("");
@@ -51,6 +53,12 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
     setUseCommission(false);
     setComm("");
   }, [showForm, vehicle, defaultCommission]);
+
+  const statusClassByFreight: Record<Freight["status"], string> = {
+    planned: "bg-secondary text-muted-foreground border-border",
+    in_progress: "bg-warning/15 text-warning border-warning/30",
+    completed: "bg-profit/15 text-profit border-profit/30",
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,12 +92,15 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
                 <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>{f.origin} → {f.destination}</span>
               </p>
-              <p className="text-xs text-muted-foreground">Trecho cadastrado neste frete.</p>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClassByFreight[f.status]}`}>{FREIGHT_STATUS_LABELS[f.status]}</span>
+                <p className="text-xs text-muted-foreground">Trecho cadastrado neste frete.</p>
+              </div>
             </div>
             {isOpen && <button onClick={() => deleteFreight(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>}
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div className="rounded-md bg-secondary/60 p-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Bruto</p>
               <p className="text-sm font-mono font-bold text-profit">{formatCurrency(f.grossValue)}</p>
@@ -103,6 +114,26 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
               <p className="text-sm font-mono font-bold">{formatNumber(f.kmInitial)} km</p>
             </div>
           </div>
+
+          <div className="rounded-md bg-secondary/60 p-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">KM estimado</p>
+            <p className="text-sm font-mono font-bold">{formatNumber(f.estimatedDistance || 0)} km</p>
+          </div>
+
+          {isOpen && (
+            <div className="flex flex-wrap gap-2">
+              {f.status !== "in_progress" && f.status !== "completed" && (
+                <button onClick={() => startFreight(trip.id, f.id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary">
+                  <PlayCircle className="w-3.5 h-3.5" /> Iniciar
+                </button>
+              )}
+              {f.status === "in_progress" && (
+                <button onClick={() => completeFreight(trip.id, f.id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Concluir
+                </button>
+              )}
+            </div>
+          )}
         </div>
       ))}
       {isOpen && (showForm ? (

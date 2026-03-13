@@ -51,6 +51,8 @@ describe("FreightTab", () => {
         setShowForm={setShowForm}
         addFreight={addFreight}
         deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn()}
       />,
     );
 
@@ -80,6 +82,8 @@ describe("FreightTab", () => {
         setShowForm={setShowForm}
         addFreight={addFreight}
         deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn()}
       />,
     );
 
@@ -103,13 +107,15 @@ describe("FreightTab", () => {
   it("mostra Retirada no card para perfil driver_owner", () => {
     render(
       <FreightTab
-        trip={{ ...tripBase, freights: [{ id: "f-1", tripId: tripBase.id, origin: "SP", destination: "MG", kmInitial: 100, grossValue: 1000, commissionPercent: 10, commissionValue: 100, createdAt: new Date().toISOString() }] }}
+        trip={{ ...tripBase, freights: [{ id: "f-1", tripId: tripBase.id, origin: "SP", destination: "MG", kmInitial: 100, grossValue: 1000, commissionPercent: 10, commissionValue: 100, status: "in_progress", estimatedDistance: 450, createdAt: new Date().toISOString() }] }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
         setShowForm={vi.fn()}
         addFreight={vi.fn()}
         deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn()}
       />,
     );
 

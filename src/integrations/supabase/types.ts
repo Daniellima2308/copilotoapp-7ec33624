@@ -79,6 +79,8 @@ export type Database = {
           km_final: number
           km_initial: number
           origin: string
+          status: string
+          estimated_distance: number
           trip_id: string
           user_id: string
         }
@@ -92,6 +94,8 @@ export type Database = {
           km_final?: number
           km_initial?: number
           origin: string
+          status?: string
+          estimated_distance?: number
           trip_id: string
           user_id: string
         }
@@ -105,6 +109,8 @@ export type Database = {
           km_final?: number
           km_initial?: number
           origin?: string
+          status?: string
+          estimated_distance?: number
           trip_id?: string
           user_id?: string
         }

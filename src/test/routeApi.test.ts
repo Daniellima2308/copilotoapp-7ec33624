@@ -1,20 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRouteDistanceDiagnostic } from "@/lib/routeApi";
+import { invokeEdgeFunction } from "@/lib/supabaseClient";
+
+vi.mock("@/lib/supabaseClient", () => ({
+  invokeEdgeFunction: vi.fn(),
+}));
 
 describe("routeApi diagnostics", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
+    vi.clearAllMocks();
   });
 
-  it("normaliza cidade com hífen e calcula rota", async () => {
-    vi.stubEnv("VITE_TOMTOM_API_KEY", "test-key");
-
-    const fetchMock = vi
-      .spyOn(global, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ position: { lat: -29.918, lon: -51.179 } }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ position: { lat: -23.55, lon: -46.633 } }] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ routes: [{ summary: { lengthInMeters: 1110000 } }] }), { status: 200 }));
+  it("retorna rota quando edge function responde com sucesso", async () => {
+    vi.mocked(invokeEdgeFunction).mockResolvedValue({
+      distanceKm: 1110,
+      originCoords: { lat: -29.918, lon: -51.179 },
+      destCoords: { lat: -23.55, lon: -46.633 },
+      reason: null,
+      originQueryUsed: "Canoas, RS, Brazil",
+      destinationQueryUsed: "São Paulo, SP, Brazil",
+    });
 
     const result = await getRouteDistanceDiagnostic("Canoas - RS", "São Paulo - SP");
 
@@ -22,12 +27,19 @@ describe("routeApi diagnostics", () => {
     expect(result.reason).toBeNull();
     expect(result.originQueryUsed).toBe("Canoas, RS, Brazil");
     expect(result.destinationQueryUsed).toBe("São Paulo, SP, Brazil");
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(invokeEdgeFunction).toHaveBeenCalledWith("calculate-route", {
+      origin: "Canoas - RS",
+      destination: "São Paulo - SP",
+    });
   });
 
-  it("retorna motivo quando geocodificação falha", async () => {
-    vi.stubEnv("VITE_TOMTOM_API_KEY", "test-key");
-    vi.spyOn(global, "fetch").mockImplementation(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+  it("retorna motivo quando edge function retorna falha de geocodificação", async () => {
+    vi.mocked(invokeEdgeFunction).mockResolvedValue({
+      distanceKm: null,
+      originCoords: null,
+      destCoords: null,
+      reason: 'Sem resultado para "Origem inválida, Brazil".',
+    });
 
     const result = await getRouteDistanceDiagnostic("Origem inválida", "Destino inválido");
 
@@ -35,12 +47,12 @@ describe("routeApi diagnostics", () => {
     expect(result.reason).toContain("Sem resultado");
   });
 
-  it("retorna motivo quando chave da API está ausente", async () => {
-    vi.stubEnv("VITE_TOMTOM_API_KEY", "");
+  it("retorna motivo quando chamada da edge function falha", async () => {
+    vi.mocked(invokeEdgeFunction).mockRejectedValue(new Error("Edge function error [500]: TOMTOM_API_KEY is not configured"));
 
     const result = await getRouteDistanceDiagnostic("Canoas - RS", "São Paulo - SP");
 
     expect(result.distanceKm).toBeNull();
-    expect(result.reason).toContain("VITE_TOMTOM_API_KEY");
+    expect(result.reason).toContain("TOMTOM_API_KEY");
   });
 });

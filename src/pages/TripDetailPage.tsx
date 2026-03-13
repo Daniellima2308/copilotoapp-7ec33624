@@ -94,6 +94,11 @@ const TripDetailPage = () => {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [activeDetail, setActiveDetail] = useState<MetricDetail | null>(null);
 
+  const commissionsByFreight = useMemo(
+    () => (trip?.freights ?? []).map((f) => ({ label: `${f.origin} → ${f.destination}`, value: formatCurrency(f.commissionValue) })),
+    [trip?.freights],
+  );
+
   if (!trip) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Viagem não encontrada.</div>;
   }
@@ -135,10 +140,6 @@ const TripDetailPage = () => {
     navigate("/");
   };
 
-  const commissionsByFreight = useMemo(
-    () => trip.freights.map((f) => ({ label: `${f.origin} → ${f.destination}`, value: formatCurrency(f.commissionValue) })),
-    [trip.freights],
-  );
 
   return (
     <div className="min-h-screen bg-background pb-24">

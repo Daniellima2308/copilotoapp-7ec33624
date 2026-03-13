@@ -2,12 +2,14 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { getRouteInfo } from "@/lib/routeApi";
 import { calculateToll } from "@/lib/tollApi";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Fuel, MapPin, DollarSign, Gauge, Truck, AlertTriangle, TrendingUp, Calculator, Route, Scale } from "lucide-react";
+import { ArrowLeft, Copy, MapPin, DollarSign, Gauge, Truck, AlertTriangle, TrendingUp, Calculator, Route, Scale, Share2, MessageCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
+import { toast } from "@/hooks/use-toast";
+import { buildCompleteFreightSummary, buildShortFreightSummary, calculateEta, getWhatsAppLink } from "@/lib/freightAnalysis";
 
 // Tabela ANTT - Resolução Nº 6.076/2026
 const tabelaANTT2026: Record<string, Record<number, { ccd: number; cc: number }>> = {
@@ -74,6 +76,8 @@ const CARGO_TYPES = [
   { value: "perigosa", label: "Carga Perigosa" },
   { value: "neogranel", label: "Neogranel" },
 ];
+
+const CARGO_LABEL_MAP: Record<string, string> = Object.fromEntries(CARGO_TYPES.map((cargo) => [cargo.value, cargo.label]));
 
 const AXLE_OPTIONS = [2, 3, 4, 5, 6, 7, 9];
 
@@ -152,6 +156,9 @@ const FreightAnalysisPage = () => {
   const [tollSource, setTollSource] = useState<"api" | "estimate" | "manual">("estimate");
   const [incluiCargaDescarga, setIncluiCargaDescarga] = useState(true);
   const [valePedagio, setValePedagio] = useState(false);
+  const [avgSpeedKmH, setAvgSpeedKmH] = useState<number>(65);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<"short" | "complete">("short");
   const routeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coordsRef = useRef<{ originLat: number; originLng: number; destLat: number; destLng: number } | null>(null);
 
@@ -227,6 +234,65 @@ const FreightAnalysisPage = () => {
     return { fuelCost, commissionValue, totalExpenses, netProfit, anttFloor, quality, profitPerKm, profitMargin, custoPedagioEfetivo };
   }, [distanceKm, offeredValue, commissionPercent, dieselPrice, avgKmPerLiter, cargoType, axles, tollCost, incluiCargaDescarga, valePedagio]);
 
+  const etaResult = useMemo(() => calculateEta(distanceKm, avgSpeedKmH), [distanceKm, avgSpeedKmH]);
+  const shouldShowEtaHint = distanceKm > 0 || (!!origin.trim() && !!destination.trim());
+  const isAwaitingDistance = shouldShowEtaHint && distanceKm <= 0;
+
+  const sharePayload = useMemo(() => {
+    if (!results) return null;
+
+    const etaDurationLabel = etaResult?.durationLabel ?? "—";
+    const etaArrivalLabel = etaResult?.arrivalLabel ?? "—";
+
+    const originText = origin || "Origem não informada";
+    const destinationText = destination || "Destino não informado";
+
+    return {
+      origin: originText,
+      destination: destinationText,
+      distanceKm,
+      avgSpeedKmH,
+      etaDurationLabel,
+      etaArrivalLabel,
+      offeredValue,
+      anttFloor: results.anttFloor,
+      fuelCost: results.fuelCost,
+      tollCost,
+      valePedagio,
+      dieselPrice,
+      avgKmPerLiter,
+      axles,
+      cargoTypeLabel: CARGO_LABEL_MAP[cargoType] ?? "Carga Geral",
+      commissionPercent,
+      commissionValue: results.commissionValue,
+      totalExpenses: results.totalExpenses,
+      netProfit: results.netProfit,
+      profitPerKm: results.profitPerKm,
+      profitMargin: results.profitMargin,
+      freightQualityLabel: QUALITY_CONFIG[results.quality].label,
+      incluiCargaDescarga,
+    };
+  }, [results, etaResult, origin, destination, distanceKm, avgSpeedKmH, offeredValue, tollCost, valePedagio, dieselPrice, avgKmPerLiter, axles, cargoType, commissionPercent, incluiCargaDescarga]);
+
+  const shortSummary = useMemo(() => (sharePayload ? buildShortFreightSummary(sharePayload) : ""), [sharePayload]);
+  const completeSummary = useMemo(() => (sharePayload ? buildCompleteFreightSummary(sharePayload) : ""), [sharePayload]);
+  const selectedSummary = summaryMode === "short" ? shortSummary : completeSummary;
+
+  const handleCopySummary = useCallback(async () => {
+    if (!selectedSummary) return;
+    try {
+      await navigator.clipboard.writeText(selectedSummary);
+      toast({ title: "Resumo copiado", description: "A análise foi copiada para a área de transferência." });
+    } catch {
+      toast({ title: "Não foi possível copiar", description: "Tente novamente em alguns segundos.", variant: "destructive" });
+    }
+  }, [selectedSummary]);
+
+  const handleOpenWhatsApp = useCallback(() => {
+    if (!selectedSummary) return;
+    window.open(getWhatsAppLink(selectedSummary), "_blank", "noopener,noreferrer");
+  }, [selectedSummary]);
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
@@ -271,6 +337,24 @@ const FreightAnalysisPage = () => {
                 />
                 <Route className={`w-4 h-4 shrink-0 ${loadingRoute ? "text-primary animate-spin" : "text-muted-foreground"}`} />
               </div>
+
+              {shouldShowEtaHint && (
+                <div className="mt-2 px-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground/90">⏱ Tempo estimado:</span>{" "}
+                      <span className="font-semibold text-foreground">{etaResult?.durationLabel ?? "—"}</span>
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground/90">🕓 Chegada prevista:</span>{" "}
+                      <span className="font-semibold text-foreground">{etaResult?.arrivalLabel ?? "—"}</span>
+                    </p>
+                  </div>
+                  {isAwaitingDistance && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Aguardando distância para calcular.</p>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -281,7 +365,7 @@ const FreightAnalysisPage = () => {
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
               <DollarSign className="w-3.5 h-3.5" /> Valores
             </h2>
-            <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Valor do Frete (R$)</label>
                 <input
@@ -396,6 +480,23 @@ const FreightAnalysisPage = () => {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Velocidade média (km/h)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={130}
+                  inputMode="numeric"
+                  value={avgSpeedKmH || ""}
+                  onChange={(e) => {
+                    const nextSpeed = Number(e.target.value);
+                    if (Number.isNaN(nextSpeed)) return;
+                    setAvgSpeedKmH(Math.min(130, Math.max(1, nextSpeed)));
+                  }}
+                  className="input-field"
+                  placeholder="Ex: 65"
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between pt-1">
               <label className="text-xs text-muted-foreground">Inclui Carga/Descarga?</label>
@@ -482,6 +583,23 @@ const FreightAnalysisPage = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="gradient-card border-border">
+              <CardContent className="p-4 space-y-3">
+                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                  <Share2 className="w-3.5 h-3.5" /> Compartilhar análise
+                </h2>
+                <p className="text-xs text-muted-foreground">Envie um resumo profissional da viagem no WhatsApp ou copie para compartilhar onde quiser.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setShareModalOpen(true)} className="min-h-11 rounded-lg bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                    <MessageCircle className="w-4 h-4" /> Enviar no WhatsApp
+                  </button>
+                  <button type="button" onClick={handleCopySummary} className="min-h-11 rounded-lg border border-border text-sm font-semibold flex items-center justify-center gap-2 hover:bg-secondary transition-colors">
+                    <Copy className="w-4 h-4" /> Copiar resumo
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -492,6 +610,47 @@ const FreightAnalysisPage = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Prévia do compartilhamento</DialogTitle>
+            <DialogDescription>
+              Escolha entre resumo curto ou completo antes de abrir o WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setSummaryMode("short")}
+              className={`min-h-11 rounded-lg border text-sm font-semibold transition-colors ${summaryMode === "short" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-secondary"}`}
+            >
+              Resumo curto
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryMode("complete")}
+              className={`min-h-11 rounded-lg border text-sm font-semibold transition-colors ${summaryMode === "complete" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-secondary"}`}
+            >
+              Resumo completo
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-border bg-secondary/35 p-3 max-h-[300px] overflow-auto">
+            <pre className="whitespace-pre-wrap text-xs leading-relaxed font-sans">{selectedSummary}</pre>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" onClick={handleCopySummary} className="min-h-11 rounded-lg border border-border text-sm font-semibold flex items-center justify-center gap-2 hover:bg-secondary transition-colors">
+              <Copy className="w-4 h-4" /> Copiar resumo
+            </button>
+            <button type="button" onClick={handleOpenWhatsApp} className="min-h-11 rounded-lg bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+              <MessageCircle className="w-4 h-4" /> Abrir WhatsApp
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

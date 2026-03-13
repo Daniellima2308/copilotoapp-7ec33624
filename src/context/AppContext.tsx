@@ -195,7 +195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState(true);
   const [personalExpensesEnabled, setPersonalExpensesEnabledState] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (options?: { throwOnError?: boolean }) => {
     if (!user) {
       setData({ vehicles: [], trips: [], maintenanceServices: [] });
       setLoading(false);
@@ -220,6 +220,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabase.from("personal_expenses").select("*").eq("user_id", user.id).order("created_at", { ascending: true }),
         supabase.from("profiles").select("personal_expenses_enabled").eq("user_id", user.id).single(),
       ]);
+
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      if (tripsRes.error) throw tripsRes.error;
+      if (freightsRes.error) throw freightsRes.error;
+      if (fuelingsRes.error) throw fuelingsRes.error;
+      if (expensesRes.error) throw expensesRes.error;
+      if (maintRes.error) throw maintRes.error;
+      if (personalExpRes.error) throw personalExpRes.error;
+      if (profileRes.error && profileRes.error.code !== "PGRST116") throw profileRes.error;
 
       if (profileRes.data) {
         const profile = profileRes.data as { personal_expenses_enabled: boolean | null };
@@ -308,6 +317,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Error fetching data:", err);
       const cached = getCachedData<AppData>();
       if (cached) setData(cached);
+      if (options?.throwOnError) {
+        throw err instanceof Error ? err : new Error("Falha ao recarregar dados.");
+      }
     } finally {
       setLoading(false);
     }
@@ -385,14 +397,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
     if (!user) return;
-    await supabase.from("vehicles").insert({
+    const { error } = await supabase.from("vehicles").insert({
       user_id: user.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
       is_fleet_owner: v.isFleetOwner || false, driver_name: v.driverName || null, current_km: v.currentKm || 0,
       operation_profile: v.operationProfile,
       driver_bond: v.driverBond || null,
       default_commission_percent: v.defaultCommissionPercent ?? null,
     });
-    await fetchData();
+    if (error) throw new Error(error.message || "Falha ao salvar o veículo.");
+
+    await fetchData({ throwOnError: true });
   }, [user, fetchData]);
 
   const updateVehicle = useCallback(async (id: string, v: Partial<Omit<Vehicle, "id">>) => {
@@ -418,13 +432,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (v.operationProfile !== undefined) updateData.operation_profile = v.operationProfile;
     if (v.driverBond !== undefined) updateData.driver_bond = v.driverBond || null;
     if (v.defaultCommissionPercent !== undefined) updateData.default_commission_percent = v.defaultCommissionPercent;
-    await supabase.from("vehicles").update(updateData).eq("id", id);
-    await fetchData();
+    const { error } = await supabase.from("vehicles").update(updateData).eq("id", id);
+    if (error) throw new Error(error.message || "Falha ao atualizar o veículo.");
+
+    await fetchData({ throwOnError: true });
   }, [fetchData]);
 
   const deleteVehicle = useCallback(async (id: string) => {
-    await supabase.from("vehicles").delete().eq("id", id);
-    await fetchData();
+    const { error } = await supabase.from("vehicles").delete().eq("id", id);
+    if (error) throw new Error(error.message || "Falha ao excluir o veículo.");
+
+    await fetchData({ throwOnError: true });
   }, [fetchData]);
 
   const updateVehicleKm = useCallback(async (vehicleId: string, km: number) => {

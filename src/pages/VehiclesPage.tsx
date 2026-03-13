@@ -57,6 +57,8 @@ const VehiclesPage = () => {
   const [editCommissionPercent, setEditCommissionPercent] = useState("");
   const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+  const [isDeletingVehicleId, setIsDeletingVehicleId] = useState<string | null>(null);
 
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
   const requiresDefaultCommission = profileUsesFixedCommission(operationProfile);
@@ -140,6 +142,9 @@ const VehiclesPage = () => {
     e.preventDefault();
     const finalModel = model === "__custom" ? customModel.trim() : model;
     const normalizedDriverName = driverName.trim();
+    const parsedYear = parseInt(year, 10);
+    const parsedKm = parseFloat(currentKm);
+    const parsedDefaultCommission = requiresDefaultCommission ? parseFloat(defaultCommissionPercent) : null;
 
     if (!brand || !finalModel || !year || !plate || !currentKm) {
       toast({ title: "Não deu para salvar", description: "Informe marca, modelo, ano, placa e KM do painel.", variant: "destructive" });
@@ -151,29 +156,63 @@ const VehiclesPage = () => {
       return;
     }
 
+    if (Number.isNaN(parsedYear) || parsedYear < 1900) {
+      toast({ title: "Não deu para salvar", description: "Informe um ano válido para o veículo.", variant: "destructive" });
+      return;
+    }
+
+    if (Number.isNaN(parsedKm) || parsedKm < 0) {
+      toast({ title: "Não deu para salvar", description: "Informe um KM válido do painel.", variant: "destructive" });
+      return;
+    }
+
+    if (requiresDefaultCommission && (parsedDefaultCommission == null || Number.isNaN(parsedDefaultCommission) || parsedDefaultCommission < 0 || parsedDefaultCommission > 100)) {
+      toast({ title: "Não deu para salvar", description: "Informe um percentual de comissão entre 0 e 100.", variant: "destructive" });
+      return;
+    }
+
     if (requiresDriverName && !normalizedDriverName) {
       toast({ title: "Não deu para salvar", description: "Preencha o nome do motorista para este perfil de veículo.", variant: "destructive" });
       return;
     }
 
+    setIsSavingVehicle(true);
     try {
       await addVehicle({
         brand,
         model: finalModel,
-        year: parseInt(year),
+        year: parsedYear,
         plate: plate.toUpperCase(),
-        currentKm: parseFloat(currentKm),
+        currentKm: parsedKm,
         operationProfile,
         driverBond: driverBond || undefined,
-        defaultCommissionPercent: requiresDefaultCommission ? parseFloat(defaultCommissionPercent) : undefined,
+        defaultCommissionPercent: requiresDefaultCommission ? parsedDefaultCommission ?? undefined : undefined,
         isFleetOwner: effectiveFleetOwner,
         driverName: effectiveFleetOwner && normalizedDriverName ? normalizedDriverName : undefined,
       });
 
+      toast({ title: "Veículo salvo com sucesso.", description: "A lista foi atualizada com os dados mais recentes." });
       clearForm();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Tente novamente em instantes.";
       toast({ title: "Não deu para salvar", description: message, variant: "destructive" });
+    } finally {
+      setIsSavingVehicle(false);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    if (!confirm("Excluir veículo?")) return;
+
+    setIsDeletingVehicleId(vehicleId);
+    try {
+      await deleteVehicle(vehicleId);
+      toast({ title: "Veículo excluído com sucesso." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tente novamente em instantes.";
+      toast({ title: "Não deu para excluir", description: message, variant: "destructive" });
+    } finally {
+      setIsDeletingVehicleId(null);
     }
   };
 
@@ -231,7 +270,7 @@ const VehiclesPage = () => {
                   className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
                   <Wrench className="w-4 h-4 text-muted-foreground" />
                 </button>
-                <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
+                <button onClick={() => handleDeleteVehicle(v.id)} disabled={isDeletingVehicleId === v.id}
                   className="p-2 rounded-lg hover:bg-expense/10 transition-colors">
                   <Trash2 className="w-4 h-4 text-expense" />
                 </button>
@@ -307,7 +346,9 @@ const VehiclesPage = () => {
               <input placeholder="Nome do Motorista" value={driverName} onChange={(e) => setDriverName(e.target.value)} className={`${inputClass} w-full`} />
             )}
             <div className="flex gap-2">
-              <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
+              <button type="submit" disabled={isSavingVehicle} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold disabled:opacity-70">
+                {isSavingVehicle ? "Salvando..." : "Salvar"}
+              </button>
               <button type="button" onClick={clearForm}
                 className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
             </div>

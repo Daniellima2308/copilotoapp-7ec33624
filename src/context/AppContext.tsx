@@ -536,6 +536,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const getActiveTrips = useCallback(() => data.trips.filter(t => t.status === "open"), [data.trips]);
 
+  const recalculateTripEstimatedDistance = useCallback(async (tripId: string) => {
+    try {
+      const { getRouteDistanceDiagnostic } = await import("@/lib/routeApi");
+      const { data: dbFreights, error: freightsError } = await supabase
+        .from("freights")
+        .select("id, origin, destination")
+        .eq("trip_id", tripId);
+
+      if (freightsError) {
+        throw new Error(freightsError.message || "Falha ao carregar fretes para calcular rota.");
+      }
+
+      const freights = dbFreights || [];
+      if (freights.length === 0) {
+        const { error: tripUpdateError } = await supabase.from("trips").update({ estimated_distance: 0 }).eq("id", tripId);
+        if (tripUpdateError) {
+          throw new Error(tripUpdateError.message || "Falha ao atualizar distância estimada da viagem.");
+        }
+        return;
+      }
+
+      const diagnostics = await Promise.all(
+        freights.map(async (freight) => {
+          const result = await getRouteDistanceDiagnostic(freight.origin, freight.destination);
+          return { ...result, freight };
+        }),
+      );
+
+      const validDistances = diagnostics
+        .map((d) => d.distanceKm)
+        .filter((distance): distance is number => typeof distance === "number" && distance > 0);
+
+      const totalEstimated = validDistances.reduce((sum, distance) => sum + distance, 0);
+
+      const { error: tripUpdateError } = await supabase
+        .from("trips")
+        .update({ estimated_distance: totalEstimated })
+        .eq("id", tripId);
+
+      if (tripUpdateError) {
+        throw new Error(tripUpdateError.message || "Falha ao salvar distância estimada da viagem.");
+      }
+
+      const failedRoutes = diagnostics.filter((d) => d.distanceKm === null);
+      if (failedRoutes.length > 0) {
+        console.error("Falha ao calcular rota estimada de alguns fretes", failedRoutes);
+        const sample = failedRoutes[0];
+        toast({
+          title: "Não foi possível calcular todas as rotas",
+          description: `${failedRoutes.length} frete(s) sem distância estimada. Motivo: ${sample.reason || "erro não identificado"}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Falha ao recalcular distância estimada da viagem", error);
+      toast({
+        title: "Falha ao recalcular rota estimada",
+        description: error instanceof Error ? error.message : "Erro inesperado ao atualizar distância da viagem.",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) throw new Error("Usuário não autenticado.");
 
@@ -582,19 +645,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);
     }
+    await recalculateTripEstimatedDistance(tripId);
     await fetchData();
-    try {
-      const { getRouteDistance } = await import("@/lib/routeApi");
-      const { data: dbFreights } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
-      const allFreights = dbFreights || [];
-      const distances = await Promise.all(allFreights.map(fr => getRouteDistance(fr.origin, fr.destination)));
-      const totalEstimated = distances.reduce((sum, d) => sum + (d || 0), 0);
-      await supabase.from("trips").update({ estimated_distance: totalEstimated }).eq("id", tripId);
-      await fetchData();
-    } catch (err) {
-      console.warn("Could not calculate estimated distance:", err);
-    }
-  }, [user, data.trips, fetchData]);
+  }, [user, data.trips, fetchData, recalculateTripEstimatedDistance]);
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
     if (!isOnline()) {
@@ -603,21 +656,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     await supabase.from("freights").delete().eq("id", freightId);
-    try {
-      const { getRouteDistance } = await import("@/lib/routeApi");
-      const { data: remaining } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
-      if (!remaining || remaining.length === 0) {
-        await supabase.from("trips").update({ estimated_distance: 0 }).eq("id", tripId);
-      } else {
-        const distances = await Promise.all(remaining.map(fr => getRouteDistance(fr.origin, fr.destination)));
-        const total = distances.reduce((sum, d) => sum + (d || 0), 0);
-        await supabase.from("trips").update({ estimated_distance: total }).eq("id", tripId);
-      }
-    } catch (err) {
-      console.warn("Could not recalculate estimated distance:", err);
-    }
+    await recalculateTripEstimatedDistance(tripId);
     await fetchData();
-  }, [fetchData]);
+  }, [fetchData, recalculateTripEstimatedDistance]);
 
   const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
@@ -650,20 +691,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       origin: f.origin, destination: f.destination, km_initial: f.kmInitial,
       gross_value: f.grossValue, commission_percent: f.commissionPercent, commission_value: commissionValue,
     }).eq("id", freightId);
-    try {
-      const { getRouteDistance } = await import("@/lib/routeApi");
-      const { data: dbFreights } = await supabase.from("freights").select("origin, destination").eq("trip_id", tripId);
-      const distances = await Promise.all((dbFreights || []).map(fr => getRouteDistance(fr.origin, fr.destination)));
-      const totalEstimated = distances.reduce((sum, d) => sum + (d || 0), 0);
-      await supabase.from("trips").update({ estimated_distance: totalEstimated }).eq("id", tripId);
-    } catch (err) {
-      console.warn("Could not recalculate estimated distance:", err);
-    }
+    await recalculateTripEstimatedDistance(tripId);
     if (vehicleId) {
       await recalculateVehicleKm(vehicleId);
     }
     await fetchData();
-  }, [user, data.trips, fetchData]);
+  }, [user, data.trips, fetchData, recalculateTripEstimatedDistance]);
 
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;

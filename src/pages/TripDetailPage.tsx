@@ -87,7 +87,7 @@ function computeSmartBanner(trip: Trip, hasRealKm: boolean, hasEstimatedKm: bool
 const TripDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data, finishTrip, deleteTrip, addFreight, deleteFreight, startFreight, completeFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense } = useApp();
+  const { data, finishTrip, deleteTrip, addFreight, updateFreight, deleteFreight, startFreight, completeFreight, addFueling, updateFueling, deleteFueling, addExpense, deleteExpense } = useApp();
   const trip = data.trips.find((t) => t.id === id);
   const [tab, setTab] = useState<Tab>("freights");
   const [showForm, setShowForm] = useState(false);
@@ -382,7 +382,7 @@ const TripDetailPage = () => {
           ))}
         </div>
 
-        {tab === "freights" && <FreightTab trip={trip} vehicle={vehicle} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addFreight={addFreight} deleteFreight={deleteFreight} startFreight={startFreight} completeFreight={completeFreight} />}
+        {tab === "freights" && <FreightTab trip={trip} vehicle={vehicle} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addFreight={addFreight} updateFreight={updateFreight} deleteFreight={deleteFreight} startFreight={startFreight} completeFreight={completeFreight} onRequestOpenFreightForm={() => setShowForm(true)} />}
         {tab === "fuel" && <FuelTab trip={trip} isOpen={isOpen} addFueling={addFueling} updateFueling={updateFueling} deleteFueling={deleteFueling} />}
         {tab === "expenses" && <ExpenseTab trip={trip} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addExpense={addExpense} deleteExpense={deleteExpense} />}
       </div>

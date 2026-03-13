@@ -37,6 +37,13 @@ const driverOwnerVehicle: Vehicle = {
   currentKm: 1000,
 };
 
+const defaultProps = {
+  updateFreight: vi.fn().mockResolvedValue(undefined),
+  deleteFreight: vi.fn(),
+  startFreight: vi.fn(),
+  completeFreight: vi.fn().mockResolvedValue({ promotedFreightId: null }),
+};
+
 describe("FreightTab", () => {
   it("fecha formulário apenas quando addFreight tiver sucesso", async () => {
     const addFreight = vi.fn().mockResolvedValue(undefined);
@@ -50,9 +57,7 @@ describe("FreightTab", () => {
         showForm
         setShowForm={setShowForm}
         addFreight={addFreight}
-        deleteFreight={vi.fn()}
-        startFreight={vi.fn()}
-        completeFreight={vi.fn()}
+        {...defaultProps}
       />,
     );
 
@@ -81,9 +86,7 @@ describe("FreightTab", () => {
         showForm
         setShowForm={setShowForm}
         addFreight={addFreight}
-        deleteFreight={vi.fn()}
-        startFreight={vi.fn()}
-        completeFreight={vi.fn()}
+        {...defaultProps}
       />,
     );
 
@@ -113,13 +116,37 @@ describe("FreightTab", () => {
         showForm={false}
         setShowForm={vi.fn()}
         addFreight={vi.fn()}
-        deleteFreight={vi.fn()}
-        startFreight={vi.fn()}
-        completeFreight={vi.fn()}
+        {...defaultProps}
       />,
     );
 
     expect(screen.getByText("Retirada")).toBeInTheDocument();
     expect(screen.queryByText("Comissão")).not.toBeInTheDocument();
+  });
+
+  it("abre modal ao tocar em Concluir e permite só concluir", async () => {
+    const completeFreight = vi.fn().mockResolvedValue({ promotedFreightId: null });
+
+    render(
+      <FreightTab
+        trip={{ ...tripBase, freights: [{ id: "f-1", tripId: tripBase.id, origin: "SP", destination: "MG", kmInitial: 100, grossValue: 1000, commissionPercent: 10, commissionValue: 100, status: "in_progress", estimatedDistance: 450, createdAt: new Date().toISOString() }] }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn()}
+        {...defaultProps}
+        completeFreight={completeFreight}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Concluir/i }));
+    expect(screen.getByText("Concluir frete atual?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Só concluir este frete" }));
+
+    await waitFor(() => {
+      expect(completeFreight).toHaveBeenCalledWith("trip-1", "f-1", "complete_only");
+    });
   });
 });

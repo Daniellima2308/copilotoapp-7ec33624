@@ -29,6 +29,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
   const eta = remainingKm > 0 ? calculateEta(remainingKm, AVG_SPEED_KMH) : null;
 
   const shouldShowEta = !!currentFreight && freightEstimated > 0;
+  const hasPlannedFreight = trip.freights.some((freight) => freight.status === "planned");
 
   return (
     <div className="gradient-card rounded-xl p-4 space-y-3">
@@ -86,7 +87,11 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
       ) : (
         <div className="rounded-lg bg-secondary/50 p-3">
           <p className="text-xs font-semibold text-foreground">Sem frete em andamento para calcular previsão.</p>
-          <p className="text-[11px] text-muted-foreground mt-1">Inicie um frete na lista abaixo para liberar ETA no hero.</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {hasPlannedFreight
+              ? "Próximo frete aguardando início. Toque em Iniciar no trecho planejado."
+              : "Inicie um frete na lista abaixo para liberar ETA no hero."}
+          </p>
         </div>
       )}
     </div>

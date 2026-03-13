@@ -19,7 +19,6 @@ export function normalizeTripFreights(freights: Freight[]): Freight[] {
 }
 
 export function getCurrentFreight(trip: Trip): Freight | null {
-  if (trip.freights.length === 1) return trip.freights[0];
   return trip.freights.find((freight) => freight.status === "in_progress") ?? null;
 }
 

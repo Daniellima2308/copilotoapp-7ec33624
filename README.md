@@ -36,6 +36,14 @@ npm i
 npm run dev
 ```
 
+## Environment variables
+
+Create a `.env.local` file and configure the TomTom key used by route/geocoding features:
+
+```sh
+VITE_TOMTOM_API_KEY=your_tomtom_key_here
+```
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).

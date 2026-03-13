@@ -18,13 +18,17 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
   const [dest, setDest] = useState("");
   const [km, setKm] = useState("");
   const [gross, setGross] = useState("");
-  const [comm, setComm] = useState("17");
+  const [useCommission, setUseCommission] = useState(false);
+  const [comm, setComm] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !dest || !km || !gross) return;
-    addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent: parseFloat(comm), createdAt: new Date().toISOString() });
-    setOrigin(""); setDest(""); setKm(""); setGross(""); setComm("17"); setShowForm(false);
+    if (!origin || !dest || !km || !gross || (useCommission && !comm)) return;
+
+    const commissionPercent = useCommission ? parseFloat(comm) : 0;
+
+    addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent, createdAt: new Date().toISOString() });
+    setOrigin(""); setDest(""); setKm(""); setGross(""); setUseCommission(false); setComm(""); setShowForm(false);
   };
 
   return (
@@ -65,8 +69,34 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
             <CityAutocomplete placeholder="Destino" value={dest} onChange={setDest} className="input-field" />
             <input placeholder="KM Inicial" type="number" min="0" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" />
             <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
-            <input placeholder="Comissão (%)" type="number" step="0.1" min="0" max="100" value={comm} onChange={(e) => setComm(e.target.value)} className="input-field" />
           </div>
+
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={useCommission}
+              onChange={(e) => {
+                const shouldUseCommission = e.target.checked;
+                setUseCommission(shouldUseCommission);
+                if (!shouldUseCommission) setComm("");
+              }}
+            />
+            Usar comissão neste frete?
+          </label>
+
+          {useCommission && (
+            <input
+              placeholder="Comissão (%)"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={comm}
+              onChange={(e) => setComm(e.target.value)}
+              className="input-field"
+            />
+          )}
+
           <div className="flex gap-2">
             <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>

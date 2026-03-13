@@ -1,5 +1,5 @@
 import { Trip, Vehicle } from "@/types";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import { getTripGrossRevenue, getLastDestination, formatCurrency } from "@/lib/calculations";
 import { Truck, MapPin, ChevronRight, CheckCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";

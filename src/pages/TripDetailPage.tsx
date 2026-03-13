@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import {
   getTripGrossRevenue,
   getTripNetRevenue,

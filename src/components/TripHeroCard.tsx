@@ -12,7 +12,25 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
   const currentKm = vehicle?.currentKm || 0;
   const totalKm = getTripTotalKm(trip);
   const estimated = trip.estimatedDistance || 0;
-  const progressPercent = estimated > 0 ? Math.min(100, (totalKm / estimated) * 100) : 0;
+  const hasActualKm = totalKm > 0;
+  const hasEstimatedKm = estimated > 0;
+  const progressPercent = hasEstimatedKm && hasActualKm ? Math.min(100, (totalKm / estimated) * 100) : 0;
+
+  const kmLabel = hasEstimatedKm
+    ? `${formatNumber(totalKm)} / ${formatNumber(estimated)} km`
+    : `${formatNumber(totalKm)} km rodados`;
+
+  const statusLabel = hasEstimatedKm
+    ? `${Math.round(progressPercent)}%`
+    : hasActualKm
+      ? "Sem rota estimada"
+      : "Aguardando KM";
+
+  const helperText = hasEstimatedKm
+    ? "Progresso usando a rota cadastrada."
+    : hasActualKm
+      ? "Sem rota estimada para comparar no momento."
+      : "Registre KM em frete ou abastecimento para acompanhar o progresso.";
 
   return (
     <div className="gradient-card rounded-xl p-4 space-y-3">
@@ -41,22 +59,20 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
         </div>
       </div>
 
-      {/* Progress bar */}
-      {estimated > 0 && (
-        <div className="space-y-1.5">
-          <Progress value={progressPercent} className="h-2.5 bg-secondary" />
-          <div className="flex items-center justify-between text-[11px]">
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <MapPin className="w-3 h-3" />
-              <span>
-                <span className="font-semibold text-foreground">{formatNumber(totalKm)}</span> / {formatNumber(estimated)} km
-              </span>
-            </div>
-            <span className="font-bold text-primary">{Math.round(progressPercent)}%</span>
+      {/* Progress */}
+      <div className="space-y-1.5">
+        <Progress value={progressPercent} className="h-2.5 bg-secondary" />
+        <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-1 text-muted-foreground">
+            <MapPin className="w-3 h-3" />
+            <span>
+              <span className="font-semibold text-foreground">{kmLabel}</span>
+            </span>
           </div>
-          <p className="text-[10px] text-muted-foreground">Progresso usando a rota cadastrada.</p>
+          <span className="font-bold text-primary">{statusLabel}</span>
         </div>
-      )}
+        <p className="text-[10px] text-muted-foreground">{helperText}</p>
+      </div>
     </div>
   );
 }

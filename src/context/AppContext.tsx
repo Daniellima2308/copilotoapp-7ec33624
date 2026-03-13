@@ -7,6 +7,7 @@ import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCache
 import { toast } from "@/hooks/use-toast";
 import { AppContext } from "@/context/app-context";
 import { getKmBounds, getNumericWarnings, validateKmByContext, validatePercent, validatePositiveNumber } from "@/lib/fieldValidation";
+import { isDriverBond, isVehicleOperationProfile, normalizeVehicleProfileForPersistence } from "@/lib/vehicleOperation";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -242,8 +243,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }) => ({
         id: v.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
         isFleetOwner: v.is_fleet_owner, driverName: v.driver_name, currentKm: v.current_km || 0,
-        operationProfile: (v.operation_profile as VehicleOperationProfile) || "driver_owner",
-        driverBond: (v.driver_bond as DriverBond | null) || undefined,
+        operationProfile: isVehicleOperationProfile(v.operation_profile) ? v.operation_profile : "driver_owner",
+        driverBond: isDriverBond(v.driver_bond) ? v.driver_bond : undefined,
         defaultCommissionPercent: v.default_commission_percent ?? undefined,
       }));
 
@@ -397,12 +398,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addVehicle = useCallback(async (v: Omit<Vehicle, "id">) => {
     if (!user) return;
+
+    const normalizedProfile = normalizeVehicleProfileForPersistence({
+      operationProfile: v.operationProfile,
+      driverBond: v.driverBond,
+      defaultCommissionPercent: v.defaultCommissionPercent,
+    });
+
     const { error } = await supabase.from("vehicles").insert({
       user_id: user.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
       is_fleet_owner: v.isFleetOwner || false, driver_name: v.driverName || null, current_km: v.currentKm || 0,
-      operation_profile: v.operationProfile,
-      driver_bond: v.driverBond || null,
-      default_commission_percent: v.defaultCommissionPercent ?? null,
+      operation_profile: normalizedProfile.operationProfile,
+      driver_bond: normalizedProfile.driverBond,
+      default_commission_percent: normalizedProfile.defaultCommissionPercent,
     });
     if (error) throw new Error(error.message || "Falha ao salvar o veículo.");
 
@@ -429,9 +437,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (v.isFleetOwner !== undefined) updateData.is_fleet_owner = v.isFleetOwner;
     if (v.driverName !== undefined) updateData.driver_name = v.driverName;
     if (v.currentKm !== undefined) updateData.current_km = v.currentKm;
-    if (v.operationProfile !== undefined) updateData.operation_profile = v.operationProfile;
-    if (v.driverBond !== undefined) updateData.driver_bond = v.driverBond || null;
-    if (v.defaultCommissionPercent !== undefined) updateData.default_commission_percent = v.defaultCommissionPercent;
+
+    if (v.operationProfile !== undefined || v.driverBond !== undefined || v.defaultCommissionPercent !== undefined) {
+      const normalizedProfile = normalizeVehicleProfileForPersistence({
+        operationProfile: v.operationProfile,
+        driverBond: v.driverBond,
+        defaultCommissionPercent: v.defaultCommissionPercent,
+      });
+
+      updateData.operation_profile = normalizedProfile.operationProfile;
+      updateData.driver_bond = normalizedProfile.driverBond;
+      updateData.default_commission_percent = normalizedProfile.defaultCommissionPercent;
+    }
     const { error } = await supabase.from("vehicles").update(updateData).eq("id", id);
     if (error) throw new Error(error.message || "Falha ao atualizar o veículo.");
 

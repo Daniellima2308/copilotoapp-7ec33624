@@ -46,8 +46,18 @@ export interface Freight {
   grossValue: number;
   commissionPercent: number;
   commissionValue: number;
+  status: FreightStatus;
+  estimatedDistance: number;
   createdAt: string;
 }
+
+export type FreightStatus = "planned" | "in_progress" | "completed";
+
+export const FREIGHT_STATUS_LABELS: Record<FreightStatus, string> = {
+  planned: "Planejado",
+  in_progress: "Em andamento",
+  completed: "Concluído",
+};
 
 export interface Fueling {
   id: string;

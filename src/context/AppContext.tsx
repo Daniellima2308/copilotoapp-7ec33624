@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond } from "@/types";
+import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond, FreightStatus } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/auth-context";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";
@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { AppContext } from "@/context/app-context";
 import { getKmBounds, getNumericWarnings, validateKmByContext, validatePercent, validatePositiveNumber } from "@/lib/fieldValidation";
 import { isDriverBond, isVehicleOperationProfile, normalizeVehicleProfileForPersistence, normalizeVehicleProfileUpdateForPersistence } from "@/lib/vehicleOperation";
+import { getFreightStatusForInsert, normalizeTripFreights } from "@/lib/freightStatus";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -251,11 +252,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const freightsMap = new Map<string, Freight[]>();
       (freightsRes.data || []).forEach((f: {
         id: string; trip_id: string; origin: string; destination: string; km_initial: number;
-        gross_value: number; commission_percent: number; commission_value: number; created_at: string;
+        gross_value: number; commission_percent: number; commission_value: number;
+        status: FreightStatus | null; estimated_distance: number | null; created_at: string;
       }) => {
         const freight: Freight = { id: f.id, tripId: f.trip_id, origin: f.origin, destination: f.destination,
           kmInitial: f.km_initial, grossValue: f.gross_value, commissionPercent: f.commission_percent,
-          commissionValue: f.commission_value, createdAt: f.created_at };
+          commissionValue: f.commission_value, status: f.status || "planned",
+          estimatedDistance: f.estimated_distance || 0, createdAt: f.created_at };
         if (!freightsMap.has(f.trip_id)) freightsMap.set(f.trip_id, []);
         freightsMap.get(f.trip_id)!.push(freight);
       });
@@ -294,11 +297,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         personalExpMap.get(pe.trip_id)!.push(item);
       });
 
+      const normalizedFreightsMap = new Map<string, Freight[]>();
+      for (const [tripId, freights] of freightsMap.entries()) {
+        normalizedFreightsMap.set(tripId, normalizeTripFreights(freights));
+      }
+
       const trips: Trip[] = (tripsRes.data || []).map((t: {
         id: string; vehicle_id: string; status: string; created_at: string; finished_at: string | null; estimated_distance: number | null;
       }) => ({
         id: t.id, vehicleId: t.vehicle_id, status: t.status as TripStatus,
-        freights: freightsMap.get(t.id) || [], fuelings: fuelingsMap.get(t.id) || [],
+        freights: normalizedFreightsMap.get(t.id) || [], fuelings: fuelingsMap.get(t.id) || [],
         expenses: expensesMap.get(t.id) || [], personalExpenses: personalExpMap.get(t.id) || [],
         createdAt: t.created_at, finishedAt: t.finished_at,
         estimatedDistance: t.estimated_distance || 0,
@@ -564,11 +572,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }),
       );
 
-      const validDistances = diagnostics
-        .map((d) => d.distanceKm)
-        .filter((distance): distance is number => typeof distance === "number" && distance > 0);
+      const updates = diagnostics
+        .filter((d) => typeof d.distanceKm === "number" && d.distanceKm > 0)
+        .map((d) => ({ id: d.freight.id, estimatedDistance: d.distanceKm as number }));
 
-      const totalEstimated = validDistances.reduce((sum, distance) => sum + distance, 0);
+      await Promise.all(
+        updates.map((update) =>
+          supabase.from("freights").update({ estimated_distance: update.estimatedDistance }).eq("id", update.id),
+        ),
+      );
+
+      const totalEstimated = updates.reduce((sum, item) => sum + item.estimatedDistance, 0);
 
       const { error: tripUpdateError } = await supabase
         .from("trips")
@@ -582,12 +596,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const failedRoutes = diagnostics.filter((d) => d.distanceKm === null);
       if (failedRoutes.length > 0) {
         console.error("Falha ao calcular rota estimada de alguns fretes", failedRoutes);
-        const sample = failedRoutes[0];
-        toast({
-          title: "Não foi possível calcular todas as rotas",
-          description: `${failedRoutes.length} frete(s) sem distância estimada. Motivo: ${sample.reason || "erro não identificado"}`,
-          variant: "destructive",
-        });
       }
     } catch (error) {
       console.error("Falha ao recalcular distância estimada da viagem", error);
@@ -599,7 +607,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
+  const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => {
     if (!user) throw new Error("Usuário não autenticado.");
 
     const kmValidation = validatePositiveNumber(f.kmInitial, "KM inicial", true);
@@ -625,21 +633,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showWarnings(getNumericWarnings({ totalValue: f.grossValue, commissionPercent: f.commissionPercent }));
 
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
+    const freightStatus = getFreightStatusForInsert(trip?.freights || []);
 
     if (!isOnline()) {
       addToOfflineQueue({ type: "addFreight", payload: {
         trip_id: tripId, origin: f.origin, destination: f.destination,
         km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
         commission_percent: f.commissionPercent, commission_value: commissionValue,
+        status: freightStatus, estimated_distance: 0,
       }});
       toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
       return;
     }
 
+    const { getRouteDistanceDiagnostic } = await import("@/lib/routeApi");
+    const distanceDiagnostic = await getRouteDistanceDiagnostic(f.origin, f.destination);
+    const estimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
+      ? distanceDiagnostic.distanceKm
+      : 0;
+
     const { error: freightInsertError } = await supabase.from("freights").insert({
       trip_id: tripId, user_id: user.id, origin: f.origin, destination: f.destination,
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
       commission_percent: f.commissionPercent, commission_value: commissionValue,
+      status: freightStatus, estimated_distance: estimatedDistance,
     });
     if (freightInsertError) throw new Error(freightInsertError.message || "Falha ao salvar o frete.");
     if (vehicleId) {
@@ -660,7 +677,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [fetchData, recalculateTripEstimatedDistance]);
 
-  const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
+  const startFreight = useCallback(async (tripId: string, freightId: string) => {
+    await supabase.from("freights").update({ status: "planned" }).eq("trip_id", tripId).eq("status", "in_progress");
+    await supabase.from("freights").update({ status: "in_progress" }).eq("id", freightId);
+    await fetchData();
+  }, [fetchData]);
+
+  const completeFreight = useCallback(async (tripId: string, freightId: string) => {
+    await supabase.from("freights").update({ status: "completed" }).eq("id", freightId);
+
+    const { data: nextPlanned } = await supabase
+      .from("freights")
+      .select("id")
+      .eq("trip_id", tripId)
+      .eq("status", "planned")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (nextPlanned?.id) {
+      await supabase.from("freights").update({ status: "in_progress" }).eq("id", nextPlanned.id);
+    }
+
+    await fetchData();
+  }, [fetchData]);
+
+  const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => {
     if (!user) return;
 
     const kmValidation = validatePositiveNumber(f.kmInitial, "KM inicial", true);
@@ -1005,7 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       data, loading, personalExpensesEnabled, setPersonalExpensesEnabled,
       addVehicle, updateVehicle, deleteVehicle, updateVehicleKm, addTrip, finishTrip, deleteTrip, getActiveTrips,
-      addFreight, updateFreight, deleteFreight, addFueling, updateFueling, deleteFueling,
+      addFreight, updateFreight, deleteFreight, startFreight, completeFreight, addFueling, updateFueling, deleteFueling,
       addExpense, updateExpense, deleteExpense,
       addPersonalExpense, updatePersonalExpense, deletePersonalExpense,
       clearHistory, refreshData: fetchData, addMaintenanceService, deleteMaintenanceService,

@@ -14,9 +14,11 @@ export interface AppContextType {
   finishTrip: (id: string, arrivalKm?: number) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
   getActiveTrips: () => Trip[];
-  addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
-  updateFreight: (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => Promise<void>;
+  addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => Promise<void>;
+  updateFreight: (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
+  startFreight: (tripId: string, freightId: string) => Promise<void>;
+  completeFreight: (tripId: string, freightId: string) => Promise<void>;
   addFueling: (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   updateFueling: (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   deleteFueling: (tripId: string, fuelingId: string) => Promise<void>;

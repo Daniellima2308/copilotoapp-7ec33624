@@ -39,7 +39,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Trip } from "@/types";
 
 type Tab = "freights" | "fuel" | "expenses";
-type InfoState = "REAL" | "ATÉ AGORA" | "PREVISÃO";
+type InfoState = "LANÇADO" | "ATUAL" | "PREVISTO";
 
 interface MetricDetail {
   title: string;
@@ -49,9 +49,9 @@ interface MetricDetail {
 }
 
 const STATUS_STYLES: Record<InfoState, string> = {
-  REAL: "bg-profit/10 text-profit border-profit/30",
-  "ATÉ AGORA": "bg-warning/10 text-warning border-warning/30",
-  "PREVISÃO": "bg-info/10 text-info border-info/30",
+  "LANÇADO": "bg-profit/10 text-profit border-profit/30",
+  "ATUAL": "bg-warning/10 text-warning border-warning/30",
+  "PREVISTO": "bg-info/10 text-info border-info/30",
 };
 
 function computeSmartBanner(trip: Trip, hasRealKm: boolean, hasEstimatedKm: boolean) {
@@ -122,7 +122,7 @@ const TripDetailPage = () => {
   const profitKm = effectiveKm.km > 0 ? getTripProfitPerKm(trip) : 0;
 
   const kmLabel = hasRealKm ? "KM rodado" : hasEstimatedKm ? "KM previsto" : "KM da viagem";
-  const kmState: InfoState = hasRealKm ? "REAL" : hasEstimatedKm ? "PREVISÃO" : "ATÉ AGORA";
+  const kmState: InfoState = hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL";
   const kmText = hasRealKm
     ? "Trecho rodado de verdade."
     : hasEstimatedKm
@@ -194,16 +194,16 @@ const TripDetailPage = () => {
             </div>
             <div className="grid grid-cols-1 gap-2">
               <StatusLegendChip
-                state="REAL"
-                text="conta feita com dados reais da viagem"
+                state="LANÇADO"
+                text="conta feita com dados já lançados na viagem"
               />
               <StatusLegendChip
-                state="ATÉ AGORA"
-                text="valor real no momento, mas ainda pode mudar"
+                state="ATUAL"
+                text="valor certo neste momento, mas ainda pode mudar"
               />
               <StatusLegendChip
-                state="PREVISÃO"
-                text="conta feita pela rota cadastrada"
+                state="PREVISTO"
+                text="conta feita com base na rota cadastrada"
               />
             </div>
           </section>
@@ -212,7 +212,7 @@ const TripDetailPage = () => {
         <div className="grid grid-cols-2 gap-2">
           <MetricCard
             label="Bruto"
-            state="REAL"
+            state="LANÇADO"
             value={formatCurrency(gross)}
             icon={<DollarSign className="w-4 h-4" />}
             helperText="Valor dos fretes cadastrados."
@@ -226,7 +226,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label="Comissão"
-            state="REAL"
+            state="LANÇADO"
             value={formatCurrency(commissions)}
             icon={<Wallet className="w-4 h-4" />}
             helperText="Valor da comissão do motorista."
@@ -240,7 +240,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label={isOpen ? "Líquido até agora" : "Líquido"}
-            state={isOpen ? "ATÉ AGORA" : "REAL"}
+            state={isOpen ? "ATUAL" : "LANÇADO"}
             value={formatCurrency(net)}
             icon={<TrendingUp className="w-4 h-4" />}
             valueClass={net >= 0 ? "text-profit" : "text-expense"}
@@ -263,7 +263,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label="Gastos da viagem"
-            state="ATÉ AGORA"
+            state="ATUAL"
             value={formatCurrency(totalOperationalCosts)}
             icon={<Receipt className="w-4 h-4" />}
             valueClass="text-expense"
@@ -299,7 +299,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label="Média"
-            state={avgConsumption > 0 ? "REAL" : "ATÉ AGORA"}
+            state={avgConsumption > 0 ? "LANÇADO" : "ATUAL"}
             value={avgConsumption > 0 ? `${formatNumber(avgConsumption)} km/l` : "Aguardando"}
             icon={<Gauge className="w-4 h-4" />}
             valueClass={avgConsumption > 0 ? "text-profit" : "text-muted-foreground"}
@@ -315,7 +315,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label={profitKmLabel}
-            state={hasRealKm ? "REAL" : hasEstimatedKm ? "PREVISÃO" : "ATÉ AGORA"}
+            state={hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"}
             value={effectiveKm.km > 0 ? `R$ ${formatNumber(profitKm)}` : "—"}
             icon={<TrendingUp className="w-4 h-4" />}
             valueClass={effectiveKm.km > 0 ? "text-profit" : "text-muted-foreground"}
@@ -338,7 +338,7 @@ const TripDetailPage = () => {
 
           <MetricCard
             label={costKmLabel}
-            state={hasRealKm ? "REAL" : hasEstimatedKm ? "PREVISÃO" : "ATÉ AGORA"}
+            state={hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"}
             value={effectiveKm.km > 0 ? `R$ ${formatNumber(costKm)}` : "—"}
             icon={<TrendingDown className="w-4 h-4" />}
             valueClass={effectiveKm.km > 0 ? "text-expense" : "text-muted-foreground"}
@@ -401,8 +401,8 @@ const TripDetailPage = () => {
 
 function StatusLegendChip({ state, text }: { state: InfoState; text: string }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-      <span className={`px-2 py-0.5 rounded-full border font-semibold ${STATUS_STYLES[state]}`}>{state}</span>
+    <div className="flex items-center gap-2 text-[11px] text-muted-foreground min-h-6">
+      <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none ${STATUS_STYLES[state]}`}>{state}</span>
       <span>{state} = {text}</span>
     </div>
   );
@@ -432,7 +432,7 @@ function MetricCard({
           {icon}
           <span className="text-[10px] uppercase tracking-wider font-semibold">{label}</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold ${STATUS_STYLES[state]}`}>{state}</span>
+        <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-bold leading-none ${STATUS_STYLES[state]}`}>{state}</span>
       </div>
       <p className={`text-base font-bold font-mono ${valueClass}`}>{value}</p>
       <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{helperText}</p>

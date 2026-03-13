@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "@/context/app-context";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DriverBond, VehicleOperationProfile } from "@/types";
-import { profileUsesFixedCommission, VEHICLE_OPERATION_PROFILE_LABELS } from "@/lib/vehicleOperation";
+import { DriverBond, Vehicle, VehicleOperationProfile } from "@/types";
+import {
+  getCommissionPercentFeedback,
+  getFleetOwnerStateByProfile,
+  getVehicleOperatorDisplayName,
+  isDriverNameRequiredByProfile,
+  profileUsesFixedCommission,
+  VEHICLE_OPERATION_PROFILE_LABELS,
+} from "@/lib/vehicleOperation";
+import { useToast } from "@/components/ui/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
@@ -26,9 +35,12 @@ const DRIVER_BOND_LABELS: Record<DriverBond, string> = {
   outro: "Outro",
 };
 
+const formatPercentLabel = (val: number) => `${Number(val.toFixed(1))}%`;
+
 const VehiclesPage = () => {
-  const { data, addVehicle, deleteVehicle } = useApp();
+  const { data, addVehicle, updateVehicle, deleteVehicle } = useApp();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
@@ -41,9 +53,30 @@ const VehiclesPage = () => {
   const [defaultCommissionPercent, setDefaultCommissionPercent] = useState("");
   const [isFleetOwner, setIsFleetOwner] = useState(false);
   const [driverName, setDriverName] = useState("");
+  const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
+  const [editCommissionPercent, setEditCommissionPercent] = useState("");
+  const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
   const requiresDefaultCommission = profileUsesFixedCommission(operationProfile);
+  const autoFleetOwnerState = useMemo(() => getFleetOwnerStateByProfile(operationProfile), [operationProfile]);
+  const isFleetOwnerLocked = autoFleetOwnerState !== null;
+  const effectiveFleetOwner = autoFleetOwnerState ?? isFleetOwner;
+  const requiresDriverName = isDriverNameRequiredByProfile(operationProfile);
+
+  useEffect(() => {
+    if (autoFleetOwnerState !== null) {
+      setIsFleetOwner(autoFleetOwnerState);
+      if (!autoFleetOwnerState) setDriverName("");
+    }
+  }, [autoFleetOwnerState]);
+
+  useEffect(() => {
+    if (!showCelebration) return;
+    const timeout = window.setTimeout(() => setShowCelebration(false), 900);
+    return () => window.clearTimeout(timeout);
+  }, [showCelebration]);
 
   const handleBrandChange = (val: string) => { setBrand(val); setModel(""); setCustomModel(""); };
 
@@ -57,33 +90,105 @@ const VehiclesPage = () => {
     setShowForm(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const openCommissionEditor = (vehicle: Vehicle) => {
+    setEditVehicle(vehicle);
+    setEditCommissionPercent(vehicle.defaultCommissionPercent != null ? String(vehicle.defaultCommissionPercent) : "");
+  };
+
+  const handleUpdateCommission = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalModel = model === "__custom" ? customModel : model;
-    if (!brand || !finalModel || !year || !plate || !currentKm) return;
-    if (isFleetOwner && !driverName.trim()) return;
-    if (requiresDefaultCommission && !defaultCommissionPercent) return;
+    if (!editVehicle) return;
 
-    addVehicle({
-      brand,
-      model: finalModel,
-      year: parseInt(year),
-      plate: plate.toUpperCase(),
-      currentKm: parseFloat(currentKm),
-      operationProfile,
-      driverBond: driverBond || undefined,
-      defaultCommissionPercent: requiresDefaultCommission ? parseFloat(defaultCommissionPercent) : undefined,
-      isFleetOwner,
-      driverName: isFleetOwner ? driverName.trim() : undefined,
-    });
+    const parsed = parseFloat(editCommissionPercent);
+    if (!editCommissionPercent || Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+      toast({ title: "Não deu para salvar", description: "Informe um percentual entre 0 e 100.", variant: "destructive" });
+      return;
+    }
 
-    clearForm();
+    const currentPercent = editVehicle.defaultCommissionPercent ?? 0;
+    if (parsed === currentPercent) {
+      toast({
+        title: "Sem alterações",
+        description: `O percentual padrão já está em ${formatPercentLabel(parsed)}.`,
+      });
+      return;
+    }
+
+    setIsUpdatingCommission(true);
+    try {
+      await updateVehicle(editVehicle.id, { defaultCommissionPercent: parsed });
+
+      const feedback = getCommissionPercentFeedback(editVehicle.operationProfile, currentPercent, parsed);
+      if (feedback.celebrate) setShowCelebration(true);
+
+      toast({
+        title: feedback.title,
+        description: "Novo percentual será usado nos próximos fretes. Fretes antigos não serão alterados.",
+      });
+
+      setEditVehicle(null);
+      setEditCommissionPercent("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tente novamente em instantes.";
+      toast({ title: "Não deu para salvar", description: message, variant: "destructive" });
+    } finally {
+      setIsUpdatingCommission(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalModel = model === "__custom" ? customModel.trim() : model;
+    const normalizedDriverName = driverName.trim();
+
+    if (!brand || !finalModel || !year || !plate || !currentKm) {
+      toast({ title: "Não deu para salvar", description: "Informe marca, modelo, ano, placa e KM do painel.", variant: "destructive" });
+      return;
+    }
+
+    if (requiresDefaultCommission && !defaultCommissionPercent) {
+      toast({ title: "Não deu para salvar", description: "Informe o percentual padrão de comissão para este perfil.", variant: "destructive" });
+      return;
+    }
+
+    if (requiresDriverName && !normalizedDriverName) {
+      toast({ title: "Não deu para salvar", description: "Preencha o nome do motorista para este perfil de veículo.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await addVehicle({
+        brand,
+        model: finalModel,
+        year: parseInt(year),
+        plate: plate.toUpperCase(),
+        currentKm: parseFloat(currentKm),
+        operationProfile,
+        driverBond: driverBond || undefined,
+        defaultCommissionPercent: requiresDefaultCommission ? parseFloat(defaultCommissionPercent) : undefined,
+        isFleetOwner: effectiveFleetOwner,
+        driverName: effectiveFleetOwner && normalizedDriverName ? normalizedDriverName : undefined,
+      });
+
+      clearForm();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tente novamente em instantes.";
+      toast({ title: "Não deu para salvar", description: message, variant: "destructive" });
+    }
   };
 
   const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 relative overflow-x-hidden">
+      {showCelebration && (
+        <div className="pointer-events-none fixed right-6 top-20 z-50 flex gap-2" aria-hidden>
+          <span className="h-3 w-3 rounded-full bg-profit animate-ping" />
+          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-ping [animation-delay:120ms]" />
+          <span className="h-2 w-2 rounded-full bg-warning animate-ping [animation-delay:220ms]" />
+        </div>
+      )}
+
       <header className="px-4 pt-6 pb-4 flex items-center gap-3">
         <button onClick={() => navigate("/")} className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
           <ArrowLeft className="w-5 h-5" />
@@ -92,34 +197,48 @@ const VehiclesPage = () => {
       </header>
 
       <div className="px-4 space-y-3">
-        {data.vehicles.map((v) => (
-          <div key={v.id} className="gradient-card rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Truck className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">{v.brand} {v.model} {v.year}</p>
-                <p className="text-xs text-muted-foreground font-mono">{v.plate} • {v.currentKm.toLocaleString("pt-BR")} km</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{VEHICLE_OPERATION_PROFILE_LABELS[v.operationProfile]}</p>
-                {v.driverBond && <p className="text-xs text-muted-foreground/90">Vínculo: {DRIVER_BOND_LABELS[v.driverBond]}</p>}
-                {v.driverName && (
+        {data.vehicles.map((v) => {
+          const canEditDefaultCommission = profileUsesFixedCommission(v.operationProfile);
+
+          return (
+            <div key={v.id} className="gradient-card rounded-lg p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Truck className="w-5 h-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">{v.brand} {v.model} {v.year}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{v.plate} • {v.currentKm.toLocaleString("pt-BR")} km</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{VEHICLE_OPERATION_PROFILE_LABELS[v.operationProfile]}</p>
+                  {v.driverBond && <p className="text-xs text-muted-foreground/90">Vínculo: {DRIVER_BOND_LABELS[v.driverBond]}</p>}
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <User className="w-3 h-3" /> {v.driverName}
+                    <User className="w-3 h-3" /> {getVehicleOperatorDisplayName(v)}
                   </p>
+                  {canEditDefaultCommission && (
+                    <p className="text-xs text-muted-foreground/90 mt-0.5">Comissão padrão: {formatPercentLabel(v.defaultCommissionPercent ?? 0)}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                {canEditDefaultCommission && (
+                  <button
+                    onClick={() => openCommissionEditor(v)}
+                    className="p-2 rounded-lg hover:bg-accent transition-colors"
+                    title="Editar percentual padrão"
+                  >
+                    <Pencil className="w-4 h-4 text-primary" />
+                  </button>
                 )}
+                <button onClick={() => navigate(`/maintenance?vehicleId=${v.id}`)}
+                  className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
+                  <Wrench className="w-4 h-4 text-muted-foreground" />
+                </button>
+                <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
+                  className="p-2 rounded-lg hover:bg-expense/10 transition-colors">
+                  <Trash2 className="w-4 h-4 text-expense" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => navigate(`/maintenance?vehicleId=${v.id}`)}
-                className="p-2 rounded-lg hover:bg-accent transition-colors" title="Ver Manutenções">
-                <Wrench className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <button onClick={() => { if (confirm("Excluir veículo?")) deleteVehicle(v.id); }}
-                className="p-2 rounded-lg hover:bg-expense/10 transition-colors">
-                <Trash2 className="w-4 h-4 text-expense" />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         {showForm ? (
           <form onSubmit={handleSubmit} className="gradient-card rounded-xl p-4 space-y-3">
@@ -182,9 +301,9 @@ const VehiclesPage = () => {
                 <label className="text-sm text-foreground">Você é dono de frota?</label>
                 <p className="text-[10px] text-muted-foreground/60 leading-tight">selecione pra colocar o nome do motorista do seu caminhão</p>
               </div>
-              <Switch checked={isFleetOwner} onCheckedChange={setIsFleetOwner} />
+              <Switch checked={effectiveFleetOwner} onCheckedChange={setIsFleetOwner} disabled={isFleetOwnerLocked} />
             </div>
-            {isFleetOwner && (
+            {effectiveFleetOwner && (
               <input placeholder="Nome do Motorista" value={driverName} onChange={(e) => setDriverName(e.target.value)} className={`${inputClass} w-full`} />
             )}
             <div className="flex gap-2">
@@ -200,6 +319,36 @@ const VehiclesPage = () => {
           </button>
         )}
       </div>
+
+      <Dialog open={!!editVehicle} onOpenChange={(open) => { if (!open) setEditVehicle(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar percentual padrão</DialogTitle>
+            <DialogDescription>
+              Atualize o percentual do veículo para os próximos fretes. O histórico antigo não muda.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateCommission} className="space-y-3">
+            <input
+              placeholder="Percentual padrão de comissão (%)"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={editCommissionPercent}
+              onChange={(e) => setEditCommissionPercent(e.target.value)}
+              className={`${inputClass} w-full`}
+            />
+            <p className="text-xs text-muted-foreground">Novo percentual será usado apenas nos próximos fretes.</p>
+            <div className="flex gap-2">
+              <button type="submit" disabled={isUpdatingCommission} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold disabled:opacity-70">
+                {isUpdatingCommission ? "Salvando..." : "Salvar percentual"}
+              </button>
+              <button type="button" onClick={() => setEditVehicle(null)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

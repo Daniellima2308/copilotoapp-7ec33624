@@ -31,7 +31,8 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
 
   const defaultCommission = useMemo(() => getDefaultCommissionPercentForVehicle(vehicle), [vehicle]);
   const usesFixedCommission = vehicle ? profileUsesFixedCommission(vehicle.operationProfile) : false;
-  const showToggle = vehicle ? shouldShowCommissionToggle(vehicle.operationProfile) : true;
+  const isDriverOwnerProfile = vehicle?.operationProfile === "driver_owner";
+  const showToggle = vehicle ? (isDriverOwnerProfile || shouldShowCommissionToggle(vehicle.operationProfile)) : true;
   const showCommissionInput = vehicle
     ? (usesFixedCommission || (showToggle && useCommission))
     : useCommission;
@@ -42,12 +43,6 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
     if (vehicle && shouldShowCommissionFieldByDefault(vehicle.operationProfile)) {
       setUseCommission(true);
       setComm(defaultCommission.toString());
-      return;
-    }
-
-    if (vehicle?.operationProfile === "driver_owner") {
-      setUseCommission(false);
-      setComm("");
       return;
     }
 
@@ -117,7 +112,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
                   if (!shouldUse) setComm("");
                 }}
               />
-              Usar comissão neste frete?
+              {isDriverOwnerProfile ? "Separar minha retirada neste frete?" : "Usar comissão neste frete?"}
             </label>
           )}
 
@@ -127,7 +122,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
 
           {showCommissionInput && (
             <input
-              placeholder="Comissão (%)"
+              placeholder={isDriverOwnerProfile ? "Minha retirada (%)" : "Comissão (%)"}
               type="number"
               step="0.1"
               min="0"

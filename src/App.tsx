@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import VehiclesPage from "./pages/VehiclesPage";
 import NewTripPage from "./pages/NewTripPage";
 import TripDetailPage from "./pages/TripDetailPage";
+import ActiveTripRedirectPage from "./pages/ActiveTripRedirectPage";
 import FreightAnalysisPage from "./pages/FreightAnalysisPage";
 import HistoryPage from "./pages/HistoryPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -35,6 +36,7 @@ function ProtectedApp() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/vehicles" element={<VehiclesPage />} />
           <Route path="/new-trip" element={<NewTripPage />} />
+          <Route path="/trip/ativa" element={<ActiveTripRedirectPage />} />
           <Route path="/trip/:id" element={<TripDetailPage />} />
           <Route path="/freight-analysis" element={<FreightAnalysisPage />} />
           <Route path="/history" element={<HistoryPage />} />

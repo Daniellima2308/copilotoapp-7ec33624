@@ -6,6 +6,7 @@ import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenan
 import { isOnline, addToOfflineQueue, getOfflineQueue, removeFromQueue, setCachedData, getCachedData } from "@/lib/offlineQueue";
 import { toast } from "@/hooks/use-toast";
 import { AppContext } from "@/context/app-context";
+import { getKmBounds, getNumericWarnings, validateKmByContext, validatePercent, validatePositiveNumber } from "@/lib/fieldValidation";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -149,11 +150,43 @@ async function recalculateVehicleKm(vehicleId: string) {
 
   const maxFuelingKm = fuelings?.[0]?.km_current || 0;
   const maxFreightKm = freights?.[0]?.km_initial || 0;
-  const maxKm = Math.max(maxFuelingKm, maxFreightKm);
+  const maxKm = Math.max(maxFuelingKm, maxFreightKm, 0);
+  const hasKmRecords = maxFuelingKm > 0 || maxFreightKm > 0;
 
-  if (maxKm > 0) {
+  if (hasKmRecords) {
     await supabase.from("vehicles").update({ current_km: maxKm }).eq("id", vehicleId);
   }
+}
+
+async function getVehicleTimelineKms(vehicleId: string, exclude?: { fuelingId?: string; freightId?: string }) {
+  const { data: vehicleTrips } = await supabase
+    .from("trips")
+    .select("id")
+    .eq("vehicle_id", vehicleId);
+
+  const tripIds = (vehicleTrips || []).map((t) => t.id);
+  if (tripIds.length === 0) return [];
+
+  const [{ data: fuelings }, { data: freights }] = await Promise.all([
+    supabase.from("fuelings").select("id,km_current").in("trip_id", tripIds),
+    supabase.from("freights").select("id,km_initial").in("trip_id", tripIds),
+  ]);
+
+  const fuelingKms = (fuelings || [])
+    .filter((f) => !exclude?.fuelingId || f.id !== exclude.fuelingId)
+    .map((f) => f.km_current);
+
+  const freightKms = (freights || [])
+    .filter((f) => !exclude?.freightId || f.id !== exclude.freightId)
+    .map((f) => f.km_initial);
+
+  return getKmBounds([...fuelingKms, ...freightKms]);
+}
+
+function showWarnings(warnings: string[]) {
+  warnings.forEach((warning) => {
+    toast({ title: "Confere esse número rapidinho", description: warning });
+  });
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -382,8 +415,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchData]);
 
   const updateVehicleKm = useCallback(async (vehicleId: string, km: number) => {
-    const vehicle = data.vehicles.find(v => v.id === vehicleId);
-    if (vehicle && km < vehicle.currentKm) return;
+    const kmValidation = validatePositiveNumber(km, "KM", true);
+    if (!kmValidation.isValid) {
+      toast({ title: "Não deu para salvar", description: kmValidation.message, variant: "destructive" });
+      return;
+    }
+
     await supabase.from("vehicles").update({ current_km: km }).eq("id", vehicleId);
     await fetchData();
     const updatedVehicles = data.vehicles.map(v => v.id === vehicleId ? { ...v, currentKm: km } : v);
@@ -422,17 +459,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    if (arrivalKm != null) {
+      const arrivalValidation = validatePositiveNumber(arrivalKm, "KM de chegada", true);
+      if (!arrivalValidation.isValid) {
+        toast({ title: "Não deu para finalizar", description: arrivalValidation.message, variant: "destructive" });
+        return;
+      }
+    }
+
     await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", id);
     if (arrivalKm && trip) {
-      await supabase.from("vehicles").update({ current_km: arrivalKm }).eq("id", trip.vehicleId);
+      await updateVehicleKm(trip.vehicleId, arrivalKm);
     }
     await fetchData();
-    if (arrivalKm && trip) {
-      const updatedVehicles = data.vehicles.map(v => v.id === trip.vehicleId ? { ...v, currentKm: arrivalKm } : v);
-      const alerts = getMaintenanceAlerts(updatedVehicles, data.maintenanceServices);
-      if (alerts.length > 0) checkAndNotifyMaintenance(alerts);
-    }
-  }, [data.trips, data.vehicles, data.maintenanceServices, fetchData]);
+  }, [data.trips, fetchData, updateVehicleKm]);
 
   const deleteTrip = useCallback(async (id: string) => {
     const trip = data.trips.find(t => t.id === id);
@@ -448,6 +488,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addFreight = useCallback(async (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
+
+    const kmValidation = validatePositiveNumber(f.kmInitial, "KM inicial", true);
+    const grossValidation = validatePositiveNumber(f.grossValue, "Valor bruto");
+    const percentValidation = validatePercent(f.commissionPercent, "Comissão");
+
+    if (!kmValidation.isValid || !grossValidation.isValid || !percentValidation.isValid) {
+      const message = kmValidation.message || grossValidation.message || percentValidation.message;
+      toast({ title: "Não deu para salvar o frete", description: message, variant: "destructive" });
+      return;
+    }
+
+    const trip = data.trips.find((t) => t.id === tripId);
+    const vehicleId = trip?.vehicleId;
+    if (vehicleId) {
+      const timelineKms = await getVehicleTimelineKms(vehicleId);
+      const kmCheck = validateKmByContext(f.kmInitial, "KM inicial", timelineKms);
+      if (!kmCheck.isValid) {
+        toast({ title: "KM incoerente para este veículo", description: kmCheck.message, variant: "destructive" });
+        return;
+      }
+      showWarnings(kmCheck.warnings);
+    }
+
+    showWarnings(getNumericWarnings({ totalValue: f.grossValue, commissionPercent: f.commissionPercent }));
+
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
 
     if (!isOnline()) {
@@ -465,6 +530,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       km_initial: f.kmInitial, km_final: 0, gross_value: f.grossValue,
       commission_percent: f.commissionPercent, commission_value: commissionValue,
     });
+    if (vehicleId) {
+      await recalculateVehicleKm(vehicleId);
+    }
     await fetchData();
     try {
       const { getRouteDistance } = await import("@/lib/routeApi");
@@ -477,7 +545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.warn("Could not calculate estimated distance:", err);
     }
-  }, [user, fetchData]);
+  }, [user, data.trips, fetchData]);
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
     if (!isOnline()) {
@@ -504,6 +572,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue">) => {
     if (!user) return;
+
+    const kmValidation = validatePositiveNumber(f.kmInitial, "KM inicial", true);
+    const grossValidation = validatePositiveNumber(f.grossValue, "Valor bruto");
+    const percentValidation = validatePercent(f.commissionPercent, "Comissão");
+    if (!kmValidation.isValid || !grossValidation.isValid || !percentValidation.isValid) {
+      const message = kmValidation.message || grossValidation.message || percentValidation.message;
+      toast({ title: "Não deu para atualizar o frete", description: message, variant: "destructive" });
+      return;
+    }
+
+    const trip = data.trips.find((t) => t.id === tripId);
+    const vehicleId = trip?.vehicleId;
+
+    if (vehicleId) {
+      const timelineKms = await getVehicleTimelineKms(vehicleId, { freightId });
+      const kmCheck = validateKmByContext(f.kmInitial, "KM inicial", timelineKms);
+      if (!kmCheck.isValid) {
+        toast({ title: "KM incoerente para este veículo", description: kmCheck.message, variant: "destructive" });
+        return;
+      }
+      showWarnings(kmCheck.warnings);
+    }
+
+    showWarnings(getNumericWarnings({ totalValue: f.grossValue, commissionPercent: f.commissionPercent }));
+
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
     await supabase.from("freights").update({
       origin: f.origin, destination: f.destination, km_initial: f.kmInitial,
@@ -518,11 +611,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.warn("Could not recalculate estimated distance:", err);
     }
+    if (vehicleId) {
+      await recalculateVehicleKm(vehicleId);
+    }
     await fetchData();
-  }, [user, fetchData]);
+  }, [user, data.trips, fetchData]);
 
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;
+
+    const totalValidation = validatePositiveNumber(f.totalValue, "Valor total");
+    const litersValidation = validatePositiveNumber(f.liters, "Litros");
+    const kmValidation = validatePositiveNumber(f.kmCurrent, "KM atual", true);
+
+    if (!totalValidation.isValid || !litersValidation.isValid || !kmValidation.isValid) {
+      const message = totalValidation.message || litersValidation.message || kmValidation.message;
+      toast({ title: "Não deu para salvar o abastecimento", description: message, variant: "destructive" });
+      return;
+    }
 
     if (!isOnline()) {
       const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
@@ -540,6 +646,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const roundedPPL = round2(pricePerLiter);
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId || "";
+
+    if (vehicleId) {
+      const timelineKms = await getVehicleTimelineKms(vehicleId);
+      const kmCheck = validateKmByContext(f.kmCurrent, "KM do abastecimento", timelineKms);
+      if (!kmCheck.isValid) {
+        toast({ title: "KM incoerente para abastecimento", description: kmCheck.message, variant: "destructive" });
+        return;
+      }
+      showWarnings(kmCheck.warnings);
+    }
+
+    showWarnings(getNumericWarnings({ totalValue: f.totalValue, liters: f.liters, pricePerLiter: roundedPPL }));
+
 
     const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
     const allocation = (vehicleId && f.fullTank)
@@ -585,10 +704,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateFueling = useCallback(async (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     if (!user) return;
+
+    const totalValidation = validatePositiveNumber(f.totalValue, "Valor total");
+    const litersValidation = validatePositiveNumber(f.liters, "Litros");
+    const kmValidation = validatePositiveNumber(f.kmCurrent, "KM atual", true);
+    if (!totalValidation.isValid || !litersValidation.isValid || !kmValidation.isValid) {
+      const message = totalValidation.message || litersValidation.message || kmValidation.message;
+      toast({ title: "Não deu para atualizar o abastecimento", description: message, variant: "destructive" });
+      return;
+    }
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
     const roundedPPL = Math.round(pricePerLiter * 100) / 100;
     const trip = data.trips.find(t => t.id === tripId);
     const vehicleId = trip?.vehicleId || "";
+    if (vehicleId) {
+      const timelineKms = await getVehicleTimelineKms(vehicleId, { fuelingId });
+      const kmCheck = validateKmByContext(f.kmCurrent, "KM do abastecimento", timelineKms);
+      if (!kmCheck.isValid) {
+        toast({ title: "KM incoerente para abastecimento", description: kmCheck.message, variant: "destructive" });
+        return;
+      }
+      showWarnings(kmCheck.warnings);
+    }
+
+    showWarnings(getNumericWarnings({ totalValue: f.totalValue, liters: f.liters, pricePerLiter: roundedPPL }));
+
     const average = vehicleId ? await calculateFuelingAverage(vehicleId, f) : 0;
     const allocation = (vehicleId && f.fullTank)
       ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL)
@@ -643,6 +783,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addExpense = useCallback(async (tripId: string, e: Omit<Expense, "id" | "tripId">) => {
     if (!user) return;
 
+    const valueValidation = validatePositiveNumber(e.value, "Valor da despesa");
+    if (!valueValidation.isValid) {
+      toast({ title: "Não deu para salvar a despesa", description: valueValidation.message, variant: "destructive" });
+      return;
+    }
+    showWarnings(getNumericWarnings({ totalValue: e.value }));
+
     if (!isOnline()) {
       addToOfflineQueue({ type: "addExpense", payload: {
         trip_id: tripId, category: e.category, description: e.description,
@@ -671,6 +818,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchData]);
 
   const updateExpense = useCallback(async (_tripId: string, expenseId: string, e: Omit<Expense, "id" | "tripId">) => {
+    const valueValidation = validatePositiveNumber(e.value, "Valor da despesa");
+    if (!valueValidation.isValid) {
+      toast({ title: "Não deu para atualizar a despesa", description: valueValidation.message, variant: "destructive" });
+      return;
+    }
+    showWarnings(getNumericWarnings({ totalValue: e.value }));
+
     await supabase.from("expenses").update({
       category: e.category, description: e.description, value: e.value,
       date: e.date, receipt_url: e.receiptUrl || null,
@@ -680,6 +834,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addPersonalExpense = useCallback(async (tripId: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
     if (!user) return;
+
+    const valueValidation = validatePositiveNumber(e.value, "Valor do gasto pessoal");
+    if (!valueValidation.isValid) {
+      toast({ title: "Não deu para salvar", description: valueValidation.message, variant: "destructive" });
+      return;
+    }
+    showWarnings(getNumericWarnings({ totalValue: e.value }));
 
     if (!isOnline()) {
       addToOfflineQueue({ type: "addPersonalExpense", payload: {
@@ -708,6 +869,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [fetchData]);
 
   const updatePersonalExpense = useCallback(async (_tripId: string, id: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
+    const valueValidation = validatePositiveNumber(e.value, "Valor do gasto pessoal");
+    if (!valueValidation.isValid) {
+      toast({ title: "Não deu para atualizar", description: valueValidation.message, variant: "destructive" });
+      return;
+    }
+    showWarnings(getNumericWarnings({ totalValue: e.value }));
+
     await supabase.from("personal_expenses").update({
       category: e.category, description: e.description, value: e.value, date: e.date,
     }).eq("id", id);
@@ -722,6 +890,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addMaintenanceService = useCallback(async (s: Omit<MaintenanceService, "id" | "createdAt">) => {
     if (!user) return;
+
+    const lastKmValidation = validatePositiveNumber(s.lastChangeKm, "KM da última troca", true);
+    const intervalValidation = validatePositiveNumber(s.intervalKm, "Intervalo de manutenção");
+
+    if (!lastKmValidation.isValid || !intervalValidation.isValid) {
+      const message = lastKmValidation.message || intervalValidation.message;
+      toast({ title: "Não deu para salvar a manutenção", description: message, variant: "destructive" });
+      return;
+    }
+
+    const timelineKms = await getVehicleTimelineKms(s.vehicleId);
+    const kmCheck = validateKmByContext(s.lastChangeKm, "KM da última troca", timelineKms);
+    if (!kmCheck.isValid) {
+      toast({ title: "KM incoerente para manutenção", description: kmCheck.message, variant: "destructive" });
+      return;
+    }
+    showWarnings(kmCheck.warnings);
+
     await supabase.from("maintenance_services").insert({
       user_id: user.id, vehicle_id: s.vehicleId, service_name: s.serviceName,
       last_change_km: s.lastChangeKm, interval_km: s.intervalKm,

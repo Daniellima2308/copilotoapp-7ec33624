@@ -672,10 +672,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
       return;
     }
+
+    const trip = data.trips.find((t) => t.id === tripId);
+    const vehicleId = trip?.vehicleId;
+
     await supabase.from("freights").delete().eq("id", freightId);
     await recalculateTripEstimatedDistance(tripId);
+    if (vehicleId) {
+      await recalculateVehicleKm(vehicleId);
+    }
     await fetchData();
-  }, [fetchData, recalculateTripEstimatedDistance]);
+  }, [data.trips, fetchData, recalculateTripEstimatedDistance]);
 
   const startFreight = useCallback(async (tripId: string, freightId: string) => {
     await supabase.from("freights").update({ status: "planned" }).eq("trip_id", tripId).eq("status", "in_progress");
@@ -683,23 +690,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchData();
   }, [fetchData]);
 
-  const completeFreight = useCallback(async (tripId: string, freightId: string) => {
+  const completeFreight = useCallback(async (
+    tripId: string,
+    freightId: string,
+    option: "complete_only" | "start_next_if_planned" = "start_next_if_planned",
+  ): Promise<{ promotedFreightId?: string | null }> => {
     await supabase.from("freights").update({ status: "completed" }).eq("id", freightId);
 
-    const { data: nextPlanned } = await supabase
-      .from("freights")
-      .select("id")
-      .eq("trip_id", tripId)
-      .eq("status", "planned")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    let promotedFreightId: string | null = null;
 
-    if (nextPlanned?.id) {
-      await supabase.from("freights").update({ status: "in_progress" }).eq("id", nextPlanned.id);
+    if (option === "start_next_if_planned") {
+      const { data: nextPlanned } = await supabase
+        .from("freights")
+        .select("id")
+        .eq("trip_id", tripId)
+        .eq("status", "planned")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (nextPlanned?.id) {
+        await supabase.from("freights").update({ status: "in_progress" }).eq("id", nextPlanned.id);
+        promotedFreightId = nextPlanned.id;
+      }
     }
 
     await fetchData();
+    return { promotedFreightId };
   }, [fetchData]);
 
   const updateFreight = useCallback(async (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => {

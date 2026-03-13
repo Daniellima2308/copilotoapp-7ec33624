@@ -18,7 +18,11 @@ export interface AppContextType {
   updateFreight: (tripId: string, freightId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   startFreight: (tripId: string, freightId: string) => Promise<void>;
-  completeFreight: (tripId: string, freightId: string) => Promise<void>;
+  completeFreight: (
+    tripId: string,
+    freightId: string,
+    option?: "complete_only" | "start_next_if_planned",
+  ) => Promise<{ promotedFreightId?: string | null }>;
   addFueling: (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   updateFueling: (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => Promise<void>;
   deleteFueling: (tripId: string, fuelingId: string) => Promise<void>;

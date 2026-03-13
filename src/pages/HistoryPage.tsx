@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import { TripHistoryList } from "@/components/TripHistoryList";
 import { Trash2 } from "lucide-react";
 

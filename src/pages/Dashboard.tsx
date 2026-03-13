@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useApp } from "@/context/AppContext";
+import { useApp } from "@/context/app-context";
 import { SummaryCards } from "@/components/SummaryCards";
 import { ActiveTripCard } from "@/components/ActiveTripCard";
 import { TripHistoryList } from "@/components/TripHistoryList";

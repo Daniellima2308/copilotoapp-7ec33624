@@ -511,12 +511,12 @@ export type Database = {
           created_at: string
           current_km: number
           default_commission_percent: number | null
-          driver_bond: string | null
+          driver_bond: "autonomo" | "clt" | "agregado" | "outro" | null
           driver_name: string | null
           id: string
           is_fleet_owner: boolean
           model: string
-          operation_profile: string
+          operation_profile: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
           plate: string
           user_id: string
           year: number
@@ -526,12 +526,12 @@ export type Database = {
           created_at?: string
           current_km?: number
           default_commission_percent?: number | null
-          driver_bond?: string | null
+          driver_bond?: "autonomo" | "clt" | "agregado" | "outro" | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model: string
-          operation_profile?: string
+          operation_profile?: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
           plate: string
           user_id: string
           year: number
@@ -541,12 +541,12 @@ export type Database = {
           created_at?: string
           current_km?: number
           default_commission_percent?: number | null
-          driver_bond?: string | null
+          driver_bond?: "autonomo" | "clt" | "agregado" | "outro" | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model?: string
-          operation_profile?: string
+          operation_profile?: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
           plate?: string
           user_id?: string
           year?: number

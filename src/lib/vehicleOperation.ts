@@ -1,4 +1,4 @@
-import { Vehicle, VehicleOperationProfile } from "@/types";
+import { DriverBond, Vehicle, VehicleOperationProfile } from "@/types";
 
 export const VEHICLE_OPERATION_PROFILE_LABELS: Record<VehicleOperationProfile, string> = {
   driver_owner: "Motorista dono do caminhão",
@@ -6,6 +6,38 @@ export const VEHICLE_OPERATION_PROFILE_LABELS: Record<VehicleOperationProfile, s
   owner_with_driver: "Dono do caminhão com motorista",
   custom: "Personalizado",
 };
+
+const VEHICLE_OPERATION_PROFILE_VALUES: VehicleOperationProfile[] = [
+  "driver_owner",
+  "commissioned_driver",
+  "owner_with_driver",
+  "custom",
+];
+
+const DRIVER_BOND_VALUES: DriverBond[] = ["autonomo", "clt", "agregado", "outro"];
+
+export function isVehicleOperationProfile(value: string | null | undefined): value is VehicleOperationProfile {
+  return !!value && VEHICLE_OPERATION_PROFILE_VALUES.includes(value as VehicleOperationProfile);
+}
+
+export function isDriverBond(value: string | null | undefined): value is DriverBond {
+  return !!value && DRIVER_BOND_VALUES.includes(value as DriverBond);
+}
+
+export function normalizeVehicleProfileForPersistence(input: {
+  operationProfile?: VehicleOperationProfile;
+  driverBond?: DriverBond;
+  defaultCommissionPercent?: number;
+}) {
+  const operationProfile = input.operationProfile ?? "driver_owner";
+  const usesFixedCommission = profileUsesFixedCommission(operationProfile);
+
+  return {
+    operationProfile,
+    driverBond: operationProfile === "driver_owner" ? null : (input.driverBond ?? null),
+    defaultCommissionPercent: usesFixedCommission ? (input.defaultCommissionPercent ?? null) : null,
+  };
+}
 
 export function profileUsesFixedCommission(profile: VehicleOperationProfile) {
   return profile === "commissioned_driver" || profile === "owner_with_driver";

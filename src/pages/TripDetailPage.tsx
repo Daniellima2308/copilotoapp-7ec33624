@@ -382,7 +382,7 @@ const TripDetailPage = () => {
           ))}
         </div>
 
-        {tab === "freights" && <FreightTab trip={trip} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addFreight={addFreight} deleteFreight={deleteFreight} />}
+        {tab === "freights" && <FreightTab trip={trip} vehicle={vehicle} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addFreight={addFreight} deleteFreight={deleteFreight} />}
         {tab === "fuel" && <FuelTab trip={trip} isOpen={isOpen} addFueling={addFueling} updateFueling={updateFueling} deleteFueling={deleteFueling} />}
         {tab === "expenses" && <ExpenseTab trip={trip} isOpen={isOpen} showForm={showForm} setShowForm={setShowForm} addExpense={addExpense} deleteExpense={deleteExpense} />}
       </div>

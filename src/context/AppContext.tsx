@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService } from "@/types";
+import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/auth-context";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";
@@ -229,9 +229,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const vehicles: Vehicle[] = (vehiclesRes.data || []).map((v: {
         id: string; brand: string; model: string; year: number; plate: string;
         is_fleet_owner: boolean | null; driver_name: string | null; current_km: number | null;
+        operation_profile: string | null; driver_bond: string | null; default_commission_percent: number | null;
       }) => ({
         id: v.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
         isFleetOwner: v.is_fleet_owner, driverName: v.driver_name, currentKm: v.current_km || 0,
+        operationProfile: (v.operation_profile as VehicleOperationProfile) || "driver_owner",
+        driverBond: (v.driver_bond as DriverBond | null) || undefined,
+        defaultCommissionPercent: v.default_commission_percent ?? undefined,
       }));
 
       const freightsMap = new Map<string, Freight[]>();
@@ -384,6 +388,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from("vehicles").insert({
       user_id: user.id, brand: v.brand, model: v.model, year: v.year, plate: v.plate,
       is_fleet_owner: v.isFleetOwner || false, driver_name: v.driverName || null, current_km: v.currentKm || 0,
+      operation_profile: v.operationProfile,
+      driver_bond: v.driverBond || null,
+      default_commission_percent: v.defaultCommissionPercent ?? null,
     });
     await fetchData();
   }, [user, fetchData]);
@@ -397,6 +404,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       is_fleet_owner?: boolean;
       driver_name?: string | null;
       current_km?: number;
+      operation_profile?: VehicleOperationProfile;
+      driver_bond?: DriverBond | null;
+      default_commission_percent?: number | null;
     } = {};
     if (v.brand !== undefined) updateData.brand = v.brand;
     if (v.model !== undefined) updateData.model = v.model;
@@ -405,6 +415,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (v.isFleetOwner !== undefined) updateData.is_fleet_owner = v.isFleetOwner;
     if (v.driverName !== undefined) updateData.driver_name = v.driverName;
     if (v.currentKm !== undefined) updateData.current_km = v.currentKm;
+    if (v.operationProfile !== undefined) updateData.operation_profile = v.operationProfile;
+    if (v.driverBond !== undefined) updateData.driver_bond = v.driverBond || null;
+    if (v.defaultCommissionPercent !== undefined) updateData.default_commission_percent = v.defaultCommissionPercent;
     await supabase.from("vehicles").update(updateData).eq("id", id);
     await fetchData();
   }, [fetchData]);

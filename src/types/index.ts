@@ -4,10 +4,21 @@ export interface Vehicle {
   model: string;
   year: number;
   plate: string;
+  operationProfile: VehicleOperationProfile;
+  driverBond?: DriverBond;
+  defaultCommissionPercent?: number;
   isFleetOwner?: boolean;
   driverName?: string;
   currentKm: number;
 }
+
+export type VehicleOperationProfile =
+  | "driver_owner"
+  | "commissioned_driver"
+  | "owner_with_driver"
+  | "custom";
+
+export type DriverBond = "autonomo" | "clt" | "agregado" | "outro";
 
 export interface MaintenanceService {
   id: string;

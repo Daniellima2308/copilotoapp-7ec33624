@@ -510,10 +510,13 @@ export type Database = {
           brand: string
           created_at: string
           current_km: number
+          default_commission_percent: number | null
+          driver_bond: string | null
           driver_name: string | null
           id: string
           is_fleet_owner: boolean
           model: string
+          operation_profile: string
           plate: string
           user_id: string
           year: number
@@ -522,10 +525,13 @@ export type Database = {
           brand: string
           created_at?: string
           current_km?: number
+          default_commission_percent?: number | null
+          driver_bond?: string | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model: string
+          operation_profile?: string
           plate: string
           user_id: string
           year: number
@@ -534,10 +540,13 @@ export type Database = {
           brand?: string
           created_at?: string
           current_km?: number
+          default_commission_percent?: number | null
+          driver_bond?: string | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model?: string
+          operation_profile?: string
           plate?: string
           user_id?: string
           year?: number

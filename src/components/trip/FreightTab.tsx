@@ -1,11 +1,19 @@
-import { useState } from "react";
-import { Trip, Freight } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import { Trip, Freight, Vehicle } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import { MapPin, Plus, Trash2, Ruler, Wallet } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
+import {
+  canEditCommissionPercentForFreight,
+  getDefaultCommissionPercentForVehicle,
+  profileUsesFixedCommission,
+  shouldShowCommissionFieldByDefault,
+  shouldShowCommissionToggle,
+} from "@/lib/vehicleOperation";
 
 interface FreightTabProps {
   trip: Trip;
+  vehicle?: Vehicle;
   isOpen: boolean;
   showForm: boolean;
   setShowForm: (v: boolean) => void;
@@ -13,7 +21,7 @@ interface FreightTabProps {
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
 }
 
-export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, deleteFreight }: FreightTabProps) {
+export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFreight, deleteFreight }: FreightTabProps) {
   const [origin, setOrigin] = useState("");
   const [dest, setDest] = useState("");
   const [km, setKm] = useState("");
@@ -21,11 +29,38 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
   const [useCommission, setUseCommission] = useState(false);
   const [comm, setComm] = useState("");
 
+  const defaultCommission = useMemo(() => getDefaultCommissionPercentForVehicle(vehicle), [vehicle]);
+  const usesFixedCommission = vehicle ? profileUsesFixedCommission(vehicle.operationProfile) : false;
+  const showToggle = vehicle ? shouldShowCommissionToggle(vehicle.operationProfile) : true;
+  const showCommissionInput = vehicle
+    ? (usesFixedCommission || (showToggle && useCommission))
+    : useCommission;
+
+  useEffect(() => {
+    if (!showForm) return;
+
+    if (vehicle && shouldShowCommissionFieldByDefault(vehicle.operationProfile)) {
+      setUseCommission(true);
+      setComm(defaultCommission.toString());
+      return;
+    }
+
+    if (vehicle?.operationProfile === "driver_owner") {
+      setUseCommission(false);
+      setComm("");
+      return;
+    }
+
+    setUseCommission(false);
+    setComm("");
+  }, [showForm, vehicle, defaultCommission]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !dest || !km || !gross || (useCommission && !comm)) return;
+    if (!origin || !dest || !km || !gross) return;
+    if (showCommissionInput && !comm) return;
 
-    const commissionPercent = useCommission ? parseFloat(comm) : 0;
+    const commissionPercent = showCommissionInput ? parseFloat(comm) : 0;
 
     addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent, createdAt: new Date().toISOString() });
     setOrigin(""); setDest(""); setKm(""); setGross(""); setUseCommission(false); setComm(""); setShowForm(false);
@@ -71,20 +106,26 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
             <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
           </div>
 
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <input
-              type="checkbox"
-              checked={useCommission}
-              onChange={(e) => {
-                const shouldUseCommission = e.target.checked;
-                setUseCommission(shouldUseCommission);
-                if (!shouldUseCommission) setComm("");
-              }}
-            />
-            Usar comissão neste frete?
-          </label>
+          {showToggle && (
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={useCommission}
+                onChange={(e) => {
+                  const shouldUse = e.target.checked;
+                  setUseCommission(shouldUse);
+                  if (!shouldUse) setComm("");
+                }}
+              />
+              Usar comissão neste frete?
+            </label>
+          )}
 
-          {useCommission && (
+          {usesFixedCommission && (
+            <p className="text-xs text-muted-foreground">Comissão aplicada: {defaultCommission}%</p>
+          )}
+
+          {showCommissionInput && (
             <input
               placeholder="Comissão (%)"
               type="number"
@@ -93,8 +134,13 @@ export function FreightTab({ trip, isOpen, showForm, setShowForm, addFreight, de
               max="100"
               value={comm}
               onChange={(e) => setComm(e.target.value)}
+              disabled={!canEditCommissionPercentForFreight(vehicle)}
               className="input-field"
             />
+          )}
+
+          {!showToggle && vehicle?.operationProfile === "driver_owner" && (
+            <p className="text-xs text-muted-foreground">Neste perfil, os fretes entram sem comissão e o foco fica no líquido da viagem.</p>
           )}
 
           <div className="flex gap-2">

@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DriverBond, VehicleOperationProfile } from "@/types";
+import { profileUsesFixedCommission, VEHICLE_OPERATION_PROFILE_LABELS } from "@/lib/vehicleOperation";
 
 const TRUCK_BRANDS = ["Mercedes-Benz", "Scania", "Volvo", "Volkswagen", "Ford", "Iveco", "DAF"] as const;
 
@@ -17,6 +19,13 @@ const MODELS_BY_BRAND: Record<string, string[]> = {
   "DAF": ["CF 85", "XF 105", "XF 480", "XF 530"],
 };
 
+const DRIVER_BOND_LABELS: Record<DriverBond, string> = {
+  autonomo: "Autônomo",
+  clt: "CLT",
+  agregado: "Agregado",
+  outro: "Outro",
+};
+
 const VehiclesPage = () => {
   const { data, addVehicle, deleteVehicle } = useApp();
   const navigate = useNavigate();
@@ -27,25 +36,48 @@ const VehiclesPage = () => {
   const [year, setYear] = useState("");
   const [plate, setPlate] = useState("");
   const [currentKm, setCurrentKm] = useState("");
+  const [operationProfile, setOperationProfile] = useState<VehicleOperationProfile>("driver_owner");
+  const [driverBond, setDriverBond] = useState<DriverBond | "">("");
+  const [defaultCommissionPercent, setDefaultCommissionPercent] = useState("");
   const [isFleetOwner, setIsFleetOwner] = useState(false);
   const [driverName, setDriverName] = useState("");
 
   const availableModels = brand ? (MODELS_BY_BRAND[brand] || []) : [];
+  const requiresDefaultCommission = profileUsesFixedCommission(operationProfile);
 
   const handleBrandChange = (val: string) => { setBrand(val); setModel(""); setCustomModel(""); };
+
+  const clearForm = () => {
+    setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm("");
+    setOperationProfile("driver_owner");
+    setDriverBond("");
+    setDefaultCommissionPercent("");
+    setIsFleetOwner(false);
+    setDriverName("");
+    setShowForm(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const finalModel = model === "__custom" ? customModel : model;
     if (!brand || !finalModel || !year || !plate || !currentKm) return;
     if (isFleetOwner && !driverName.trim()) return;
+    if (requiresDefaultCommission && !defaultCommissionPercent) return;
+
     addVehicle({
-      brand, model: finalModel, year: parseInt(year), plate: plate.toUpperCase(),
+      brand,
+      model: finalModel,
+      year: parseInt(year),
+      plate: plate.toUpperCase(),
       currentKm: parseFloat(currentKm),
-      isFleetOwner, driverName: isFleetOwner ? driverName.trim() : undefined,
+      operationProfile,
+      driverBond: driverBond || undefined,
+      defaultCommissionPercent: requiresDefaultCommission ? parseFloat(defaultCommissionPercent) : undefined,
+      isFleetOwner,
+      driverName: isFleetOwner ? driverName.trim() : undefined,
     });
-    setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm("");
-    setIsFleetOwner(false); setDriverName(""); setShowForm(false);
+
+    clearForm();
   };
 
   const inputClass = "bg-secondary text-foreground rounded-lg px-3 py-2.5 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary";
@@ -67,6 +99,8 @@ const VehiclesPage = () => {
               <div>
                 <p className="text-sm font-medium">{v.brand} {v.model} {v.year}</p>
                 <p className="text-xs text-muted-foreground font-mono">{v.plate} • {v.currentKm.toLocaleString("pt-BR")} km</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{VEHICLE_OPERATION_PROFILE_LABELS[v.operationProfile]}</p>
+                {v.driverBond && <p className="text-xs text-muted-foreground/90">Vínculo: {DRIVER_BOND_LABELS[v.driverBond]}</p>}
                 {v.driverName && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <User className="w-3 h-3" /> {v.driverName}
@@ -107,6 +141,41 @@ const VehiclesPage = () => {
               <input placeholder="Ano" type="number" value={year} onChange={(e) => setYear(e.target.value)} className={inputClass} />
               <input placeholder="Placa (ABC1D23)" value={plate} onChange={(e) => setPlate(e.target.value)} maxLength={7} className={`${inputClass} uppercase font-mono`} />
               <input placeholder="KM Atual do Painel" type="number" value={currentKm} onChange={(e) => setCurrentKm(e.target.value)} className={`${inputClass} col-span-2`} />
+
+              <Select value={operationProfile} onValueChange={(value) => setOperationProfile(value as VehicleOperationProfile)}>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px] col-span-2">
+                  <SelectValue placeholder="Perfil de operação do veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(VEHICLE_OPERATION_PROFILE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={driverBond} onValueChange={(value) => setDriverBond(value as DriverBond)}>
+                <SelectTrigger className="bg-secondary border-none text-sm h-[42px] col-span-2">
+                  <SelectValue placeholder="Vínculo do motorista (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(DRIVER_BOND_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {requiresDefaultCommission && (
+                <input
+                  placeholder="Percentual padrão de comissão (%)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={defaultCommissionPercent}
+                  onChange={(e) => setDefaultCommissionPercent(e.target.value)}
+                  className={`${inputClass} col-span-2`}
+                />
+              )}
             </div>
             <div className="flex items-center justify-between py-2">
               <div>
@@ -120,7 +189,7 @@ const VehiclesPage = () => {
             )}
             <div className="flex gap-2">
               <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
-              <button type="button" onClick={() => { setShowForm(false); setBrand(""); setModel(""); setCustomModel(""); setYear(""); setPlate(""); setCurrentKm(""); setIsFleetOwner(false); setDriverName(""); }}
+              <button type="button" onClick={clearForm}
                 className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
             </div>
           </form>

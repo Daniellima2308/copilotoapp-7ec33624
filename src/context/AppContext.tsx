@@ -257,7 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }) => {
         const freight: Freight = { id: f.id, tripId: f.trip_id, origin: f.origin, destination: f.destination,
           kmInitial: f.km_initial, grossValue: f.gross_value, commissionPercent: f.commission_percent,
-          commissionValue: f.commission_value, status: f.status || "planned",
+          commissionValue: f.commission_value, status: (f.status || "planned") as FreightStatus,
           estimatedDistance: f.estimated_distance || 0, createdAt: f.created_at };
         if (!freightsMap.has(f.trip_id)) freightsMap.set(f.trip_id, []);
         freightsMap.get(f.trip_id)!.push(freight);

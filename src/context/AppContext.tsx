@@ -253,7 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (freightsRes.data || []).forEach((f: {
         id: string; trip_id: string; origin: string; destination: string; km_initial: number;
         gross_value: number; commission_percent: number; commission_value: number;
-        status: FreightStatus | null; estimated_distance: number | null; created_at: string;
+        status: string | null; estimated_distance: number | null; created_at: string;
       }) => {
         const freight: Freight = { id: f.id, tripId: f.trip_id, origin: f.origin, destination: f.destination,
           kmInitial: f.km_initial, grossValue: f.gross_value, commissionPercent: f.commission_percent,

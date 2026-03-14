@@ -372,6 +372,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               await supabase.from("personal_expenses").delete().eq("id", action.payload.id);
               break;
             case "finishTrip":
+              if (action.payload.activeFreightId) {
+                await supabase.from("freights").update({ status: "completed" }).eq("id", action.payload.activeFreightId);
+              }
               await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", action.payload.tripId);
               if (action.payload.arrivalKm) {
                 await supabase.from("vehicles").update({ current_km: action.payload.arrivalKm }).eq("id", action.payload.vehicleId);
@@ -502,7 +505,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return trip;
   }, [user, data.trips, fetchData]);
 
-  const finishTrip = useCallback(async (id: string, arrivalKm?: number) => {
+  const finishTrip = useCallback(async (id: string, arrivalKm?: number): Promise<{ autoCompletedFreightId?: string | null }> => {
     const trip = data.trips.find(t => t.id === id);
 
     // Validate: trip must have at least 1 freight
@@ -511,18 +514,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error("Trip must have at least 1 freight");
     }
 
+    const activeFreight = trip?.freights.find((freight) => freight.status === "in_progress") ?? null;
+
     if (!isOnline()) {
-      addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId } });
+      addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId, activeFreightId: activeFreight?.id ?? null } });
       toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
-      return;
+      return { autoCompletedFreightId: activeFreight?.id ?? null };
     }
 
     if (arrivalKm != null) {
       const arrivalValidation = validatePositiveNumber(arrivalKm, "KM de chegada", true);
       if (!arrivalValidation.isValid) {
         toast({ title: "Não deu para finalizar", description: arrivalValidation.message, variant: "destructive" });
-        return;
+        return { autoCompletedFreightId: activeFreight?.id ?? null };
       }
+    }
+
+    if (activeFreight?.id) {
+      await supabase.from("freights").update({ status: "completed" }).eq("id", activeFreight.id);
     }
 
     await supabase.from("trips").update({ status: "finished", finished_at: new Date().toISOString() }).eq("id", id);
@@ -530,6 +539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await updateVehicleKm(trip.vehicleId, arrivalKm);
     }
     await fetchData();
+    return { autoCompletedFreightId: activeFreight?.id ?? null };
   }, [data.trips, fetchData, updateVehicleKm]);
 
   const deleteTrip = useCallback(async (id: string) => {

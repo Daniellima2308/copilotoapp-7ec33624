@@ -11,7 +11,7 @@ export interface AppContextType {
   deleteVehicle: (id: string) => Promise<void>;
   updateVehicleKm: (vehicleId: string, km: number) => Promise<void>;
   addTrip: (vehicleId: string) => Promise<Trip>;
-  finishTrip: (id: string, arrivalKm?: number) => Promise<void>;
+  finishTrip: (id: string, arrivalKm?: number) => Promise<{ autoCompletedFreightId?: string | null }>;
   deleteTrip: (id: string) => Promise<void>;
   getActiveTrips: () => Trip[];
   addFreight: (tripId: string, f: Omit<Freight, "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance">) => Promise<void>;

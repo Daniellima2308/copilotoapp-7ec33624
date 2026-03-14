@@ -13,14 +13,14 @@ interface TripHeroCardProps {
 const AVG_SPEED_KMH = 65;
 
 export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
-  const currentKm = vehicle?.currentKm || 0;
+  const vehicleOdometerKm = vehicle?.currentKm || 0;
   const currentFreight = getCurrentFreight(trip);
 
   const tripLatestKm = getTripLatestCheckpointKm(trip);
-  const effectiveCurrentKm = Math.max(currentKm, tripLatestKm);
+  const heroReferenceKm = Math.max(vehicleOdometerKm, tripLatestKm);
 
   const freightEstimated = currentFreight?.estimatedDistance || 0;
-  const rawProgressKm = currentFreight ? effectiveCurrentKm - currentFreight.kmInitial : 0;
+  const rawProgressKm = currentFreight ? heroReferenceKm - currentFreight.kmInitial : 0;
   const progressedKm = Math.max(0, rawProgressKm);
   const cappedProgressKm = freightEstimated > 0 ? Math.min(progressedKm, freightEstimated) : progressedKm;
   const remainingKm = freightEstimated > 0 ? Math.max(0, freightEstimated - cappedProgressKm) : 0;
@@ -51,8 +51,11 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
             <span className="text-[10px] uppercase tracking-wider font-semibold">Odômetro</span>
           </div>
           <p className="text-lg font-black font-mono text-foreground">
-            {formatNumber(currentKm)} <span className="text-xs font-medium text-muted-foreground">km</span>
+            {formatNumber(heroReferenceKm)} <span className="text-xs font-medium text-muted-foreground">km</span>
           </p>
+          {tripLatestKm > vehicleOdometerKm && (
+            <p className="text-[10px] text-muted-foreground">Baseado no último lançamento de KM desta viagem.</p>
+          )}
         </div>
       </div>
 

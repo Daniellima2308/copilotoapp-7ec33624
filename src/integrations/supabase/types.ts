@@ -74,11 +74,13 @@ export type Database = {
           commission_value: number
           created_at: string
           destination: string
+          estimated_distance: number
           gross_value: number
           id: string
           km_final: number
           km_initial: number
           origin: string
+          status: string
           trip_id: string
           user_id: string
         }
@@ -87,11 +89,13 @@ export type Database = {
           commission_value?: number
           created_at?: string
           destination: string
+          estimated_distance?: number
           gross_value?: number
           id?: string
           km_final?: number
           km_initial?: number
           origin: string
+          status?: string
           trip_id: string
           user_id: string
         }
@@ -100,11 +104,13 @@ export type Database = {
           commission_value?: number
           created_at?: string
           destination?: string
+          estimated_distance?: number
           gross_value?: number
           id?: string
           km_final?: number
           km_initial?: number
           origin?: string
+          status?: string
           trip_id?: string
           user_id?: string
         }

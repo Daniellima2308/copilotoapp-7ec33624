@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond, FreightStatus } from "@/types";
+import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond, FreightStatus, ExpenseCategory, PersonalExpenseCategory } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/auth-context";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";

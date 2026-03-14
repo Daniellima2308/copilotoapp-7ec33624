@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
 import { toast } from "@/hooks/use-toast";
-import { buildCompleteFreightSummary, buildShortFreightSummary, calculateEta, getWhatsAppLink } from "@/lib/freightAnalysis";
+import { buildCompleteFreightSummary, buildShortFreightSummary, calculateEta, getWhatsAppLink, type FreightQualityLabel } from "@/lib/freightAnalysis";
 
 // Tabela ANTT - Resolução Nº 6.076/2026
 const tabelaANTT2026: Record<string, Record<number, { ccd: number; cc: number }>> = {

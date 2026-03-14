@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -74,13 +74,13 @@ export type Database = {
           commission_value: number
           created_at: string
           destination: string
+          estimated_distance: number
           gross_value: number
           id: string
           km_final: number
           km_initial: number
           origin: string
           status: string
-          estimated_distance: number
           trip_id: string
           user_id: string
         }
@@ -89,13 +89,13 @@ export type Database = {
           commission_value?: number
           created_at?: string
           destination: string
+          estimated_distance?: number
           gross_value?: number
           id?: string
           km_final?: number
           km_initial?: number
           origin: string
           status?: string
-          estimated_distance?: number
           trip_id: string
           user_id: string
         }
@@ -104,13 +104,13 @@ export type Database = {
           commission_value?: number
           created_at?: string
           destination?: string
+          estimated_distance?: number
           gross_value?: number
           id?: string
           km_final?: number
           km_initial?: number
           origin?: string
           status?: string
-          estimated_distance?: number
           trip_id?: string
           user_id?: string
         }
@@ -517,12 +517,12 @@ export type Database = {
           created_at: string
           current_km: number
           default_commission_percent: number | null
-          driver_bond: "autonomo" | "clt" | "agregado" | "outro" | null
+          driver_bond: string | null
           driver_name: string | null
           id: string
           is_fleet_owner: boolean
           model: string
-          operation_profile: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
+          operation_profile: string
           plate: string
           user_id: string
           year: number
@@ -532,12 +532,12 @@ export type Database = {
           created_at?: string
           current_km?: number
           default_commission_percent?: number | null
-          driver_bond?: "autonomo" | "clt" | "agregado" | "outro" | null
+          driver_bond?: string | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model: string
-          operation_profile?: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
+          operation_profile?: string
           plate: string
           user_id: string
           year: number
@@ -547,12 +547,12 @@ export type Database = {
           created_at?: string
           current_km?: number
           default_commission_percent?: number | null
-          driver_bond?: "autonomo" | "clt" | "agregado" | "outro" | null
+          driver_bond?: string | null
           driver_name?: string | null
           id?: string
           is_fleet_owner?: boolean
           model?: string
-          operation_profile?: "driver_owner" | "commissioned_driver" | "owner_with_driver" | "custom"
+          operation_profile?: string
           plate?: string
           user_id?: string
           year?: number

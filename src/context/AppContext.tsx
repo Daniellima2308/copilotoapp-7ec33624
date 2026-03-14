@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond, FreightStatus } from "@/types";
+import { AppData, Vehicle, Trip, Freight, Fueling, Expense, TripStatus, MaintenanceService, PersonalExpense, VehicleOperationProfile, DriverBond, FreightStatus, ExpenseCategory, PersonalExpenseCategory } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/auth-context";
 import { getMaintenanceAlerts, checkAndNotifyMaintenance } from "@/lib/maintenance";
@@ -253,11 +253,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (freightsRes.data || []).forEach((f: {
         id: string; trip_id: string; origin: string; destination: string; km_initial: number;
         gross_value: number; commission_percent: number; commission_value: number;
-        status: FreightStatus | null; estimated_distance: number | null; created_at: string;
+        status: string | null; estimated_distance: number | null; created_at: string;
       }) => {
         const freight: Freight = { id: f.id, tripId: f.trip_id, origin: f.origin, destination: f.destination,
           kmInitial: f.km_initial, grossValue: f.gross_value, commissionPercent: f.commission_percent,
-          commissionValue: f.commission_value, status: f.status || "planned",
+          commissionValue: f.commission_value, status: (f.status || "planned") as FreightStatus,
           estimatedDistance: f.estimated_distance || 0, createdAt: f.created_at };
         if (!freightsMap.has(f.trip_id)) freightsMap.set(f.trip_id, []);
         freightsMap.get(f.trip_id)!.push(freight);
@@ -281,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (expensesRes.data || []).forEach((e: {
         id: string; trip_id: string; category: string; description: string; value: number; date: string; receipt_url: string | null;
       }) => {
-        const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category,
+        const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category as ExpenseCategory,
           description: e.description, value: e.value, date: e.date, receiptUrl: e.receipt_url || undefined };
         if (!expensesMap.has(e.trip_id)) expensesMap.set(e.trip_id, []);
         expensesMap.get(e.trip_id)!.push(expense);
@@ -291,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (personalExpRes.data || []).forEach((pe: {
         id: string; trip_id: string; category: string; description: string; value: number; date: string;
       }) => {
-        const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category,
+        const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category as PersonalExpenseCategory,
           description: pe.description, value: pe.value, date: pe.date };
         if (!personalExpMap.has(pe.trip_id)) personalExpMap.set(pe.trip_id, []);
         personalExpMap.get(pe.trip_id)!.push(item);

@@ -291,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (personalExpRes.data || []).forEach((pe: {
         id: string; trip_id: string; category: string; description: string; value: number; date: string;
       }) => {
-        const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category,
+        const item: PersonalExpense = { id: pe.id, tripId: pe.trip_id, category: pe.category as PersonalExpenseCategory,
           description: pe.description, value: pe.value, date: pe.date };
         if (!personalExpMap.has(pe.trip_id)) personalExpMap.set(pe.trip_id, []);
         personalExpMap.get(pe.trip_id)!.push(item);

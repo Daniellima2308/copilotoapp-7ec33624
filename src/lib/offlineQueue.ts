@@ -3,7 +3,8 @@ const QUEUE_KEY = "copiloto-offline-queue";
 export interface OfflineAction {
   id: string;
   type: string;
-  payload: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any;
   createdAt: string;
 }
 

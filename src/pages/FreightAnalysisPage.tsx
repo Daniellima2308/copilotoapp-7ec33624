@@ -269,7 +269,7 @@ const FreightAnalysisPage = () => {
       netProfit: results.netProfit,
       profitPerKm: results.profitPerKm,
       profitMargin: results.profitMargin,
-      freightQualityLabel: QUALITY_CONFIG[results.quality].label,
+      freightQualityLabel: QUALITY_CONFIG[results.quality].label as FreightQualityLabel,
       incluiCargaDescarga,
     };
   }, [results, etaResult, origin, destination, distanceKm, avgSpeedKmH, offeredValue, tollCost, valePedagio, dieselPrice, avgKmPerLiter, axles, cargoType, commissionPercent, incluiCargaDescarga]);

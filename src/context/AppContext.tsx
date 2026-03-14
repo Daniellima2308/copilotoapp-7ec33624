@@ -281,7 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (expensesRes.data || []).forEach((e: {
         id: string; trip_id: string; category: string; description: string; value: number; date: string; receipt_url: string | null;
       }) => {
-        const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category,
+        const expense: Expense = { id: e.id, tripId: e.trip_id, category: e.category as ExpenseCategory,
           description: e.description, value: e.value, date: e.date, receiptUrl: e.receipt_url || undefined };
         if (!expensesMap.has(e.trip_id)) expensesMap.set(e.trip_id, []);
         expensesMap.get(e.trip_id)!.push(expense);

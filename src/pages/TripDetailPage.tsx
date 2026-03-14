@@ -25,8 +25,11 @@ import {
   TrendingDown,
   Trash2,
   CheckCircle,
+  CircleCheck,
+  Clock3,
   FileDown,
   Route,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 import { exportSingleTripPdf } from "@/lib/exportPdf";
@@ -36,6 +39,7 @@ import { FreightTab } from "@/components/trip/FreightTab";
 import { FuelTab } from "@/components/trip/FuelTab";
 import { ExpenseTab } from "@/components/trip/ExpenseTab";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Trip } from "@/types";
 
 type Tab = "freights" | "fuel" | "expenses";
@@ -52,6 +56,24 @@ const STATUS_STYLES: Record<InfoState, string> = {
   "LANÇADO": "bg-profit/10 text-profit border-profit/30",
   "ATUAL": "bg-warning/10 text-warning border-warning/30",
   "PREVISTO": "bg-info/10 text-info border-info/30",
+};
+
+const STATUS_META: Record<InfoState, { label: string; hint: string; icon: typeof CircleCheck }> = {
+  "LANÇADO": {
+    label: "Lançado",
+    hint: "Conta feita com dados já registrados na viagem.",
+    icon: CircleCheck,
+  },
+  "ATUAL": {
+    label: "Atual",
+    hint: "Valor correto neste momento, mas ainda pode mudar.",
+    icon: Clock3,
+  },
+  "PREVISTO": {
+    label: "Previsto",
+    hint: "Conta feita com base na rota estimada.",
+    icon: Sparkles,
+  },
 };
 
 function computeSmartBanner(trip: Trip, hasRealKm: boolean, hasEstimatedKm: boolean) {
@@ -188,23 +210,17 @@ const TripDetailPage = () => {
 
         {isOpen && (
           <section className="gradient-card rounded-xl p-3.5 space-y-3 border border-border/70">
-            <div>
+            <div className="space-y-1">
               <h3 className="text-sm font-bold">{smartBanner.title}</h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{smartBanner.message}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{smartBanner.message}</p>
             </div>
-            <div className="grid grid-cols-1 gap-2">
-              <StatusLegendChip
-                state="LANÇADO"
-                text="conta feita com dados já lançados na viagem"
-              />
-              <StatusLegendChip
-                state="ATUAL"
-                text="valor certo neste momento, mas ainda pode mudar"
-              />
-              <StatusLegendChip
-                state="PREVISTO"
-                text="conta feita com base na rota cadastrada"
-              />
+            <div className="pt-1 border-t border-border/50">
+              <div className="flex flex-wrap gap-2">
+                {(["LANÇADO", "ATUAL", "PREVISTO"] as const).map((state) => (
+                  <StatusInfoPill key={state} state={state} />
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">Toque em um status para entender.</p>
             </div>
           </section>
         )}
@@ -399,12 +415,33 @@ const TripDetailPage = () => {
   );
 };
 
-function StatusLegendChip({ state, text }: { state: InfoState; text: string }) {
+function StatusInfoPill({ state }: { state: InfoState }) {
+  const meta = STATUS_META[state];
+  const Icon = meta.icon;
+
   return (
-    <div className="flex items-center gap-2 text-[11px] text-muted-foreground min-h-6">
-      <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold leading-none ${STATUS_STYLES[state]}`}>{state}</span>
-      <span>{state} = {text}</span>
-    </div>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${STATUS_STYLES[state]} hover:opacity-90`}
+        >
+          <Icon className="w-3.5 h-3.5" />
+          {meta.label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-w-[260px] rounded-xl border-border/70 p-3">
+        <div className="flex items-start gap-2">
+          <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border ${STATUS_STYLES[state]}`}>
+            <Icon className="w-3.5 h-3.5" />
+          </span>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">{meta.label}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{meta.hint}</p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -432,11 +469,25 @@ function MetricCard({
           {icon}
           <span className="text-[10px] uppercase tracking-wider font-semibold">{label}</span>
         </div>
-        <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-bold leading-none ${STATUS_STYLES[state]}`}>{state}</span>
+        <MetricStateDot state={state} />
       </div>
       <p className={`text-base font-bold font-mono ${valueClass}`}>{value}</p>
       <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{helperText}</p>
     </button>
+  );
+}
+
+function MetricStateDot({ state }: { state: InfoState }) {
+  const Icon = STATUS_META[state].icon;
+
+  return (
+    <span
+      className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${STATUS_STYLES[state]}`}
+      aria-label={`Status ${STATUS_META[state].label}`}
+      title={STATUS_META[state].label}
+    >
+      <Icon className="w-3.5 h-3.5" />
+    </span>
   );
 }
 

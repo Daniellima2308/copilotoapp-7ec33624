@@ -1,6 +1,6 @@
 import { Trip, Vehicle } from "@/types";
 import { formatDate, formatNumber, getTripLatestCheckpointKm } from "@/lib/calculations";
-import { Gauge, MapPin } from "lucide-react";
+import { Clock3, Gauge, MapPin, Route } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { getCurrentFreight } from "@/lib/freightStatus";
 import { calculateEta } from "@/lib/freightAnalysis";
@@ -57,28 +57,33 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
       </div>
 
       {currentFreight ? (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-primary">Previsão do frete atual</p>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {currentFreight.origin} → {currentFreight.destination}
+        <div className="space-y-2.5">
+          <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-tight">
+            <MapPin className="w-3.5 h-3.5 text-primary" /> {currentFreight.origin} → {currentFreight.destination}
           </p>
 
           {shouldShowEta ? (
             <>
               <Progress value={progressPercent} className="h-2.5 bg-secondary" />
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-md bg-secondary/60 p-2">
-                  <p className="text-muted-foreground">Tempo restante</p>
-                  <p className="font-bold text-foreground">{eta?.durationLabel ?? "Chegando"}</p>
-                </div>
-                <div className="rounded-md bg-secondary/60 p-2">
-                  <p className="text-muted-foreground">Chegada prevista</p>
-                  <p className="font-bold text-foreground">{eta?.arrivalLabel ?? "Agora"}</p>
+              <div className="space-y-1.5 rounded-lg bg-secondary/40 px-2.5 py-2 border border-border/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Previsão do frete atual</p>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-foreground">
+                  <span className="inline-flex items-center gap-1 font-semibold font-mono">
+                    <Route className="w-3 h-3 text-muted-foreground" />
+                    {formatNumber(cappedProgressKm)} / {formatNumber(freightEstimated)} km
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock3 className="w-3 h-3 text-muted-foreground" />
+                    {eta?.durationLabel ?? "Chegando"}
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-muted-foreground" />
+                    {eta?.arrivalLabel ?? "Agora"}
+                  </span>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                {formatNumber(cappedProgressKm)} / {formatNumber(freightEstimated)} km no frete em andamento.
-              </p>
             </>
           ) : (
             <p className="text-xs text-muted-foreground">Frete em andamento sem distância estimada para calcular previsão.</p>

@@ -1,9 +1,7 @@
 import { Freight, FreightStatus, Trip } from "@/types";
 
 export function normalizeTripFreights(freights: Freight[]): Freight[] {
-  if (freights.length <= 1) {
-    return freights.map((freight) => ({ ...freight, status: "in_progress" }));
-  }
+  if (freights.length <= 1) return freights;
 
   const inProgressFreights = freights.filter((freight) => freight.status === "in_progress");
   if (inProgressFreights.length <= 1) return freights;

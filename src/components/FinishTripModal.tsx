@@ -5,10 +5,12 @@ interface Props {
   open: boolean;
   onClose: () => void;
   minKm: number;
+  activeFreight: { origin: string; destination: string } | null;
   onConfirm: (km: number) => void;
 }
 
-export function FinishTripModal({ open, onClose, minKm, onConfirm }: Props) {
+export function FinishTripModal({ open, onClose, minKm, activeFreight, onConfirm }: Props) {
+
   const [km, setKm] = useState("");
   const [error, setError] = useState("");
 
@@ -29,7 +31,7 @@ export function FinishTripModal({ open, onClose, minKm, onConfirm }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Finalizar Viagem</DialogTitle>
-          <DialogDescription>Informe o KM de chegada no painel do caminhão.</DialogDescription>
+          <DialogDescription>{activeFreight ? `Informe o KM de chegada. O frete em andamento (${activeFreight.origin} → ${activeFreight.destination}) será concluído junto com a viagem.` : "Informe o KM de chegada no painel do caminhão."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

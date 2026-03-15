@@ -4,7 +4,17 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
+  "Vary": "Origin",
 };
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 const TOMTOM_SEARCH_URL = "https://api.tomtom.com/search/2/geocode";
 const TOMTOM_ROUTING_URL = "https://api.tomtom.com/routing/1/calculateRoute";
@@ -86,35 +96,38 @@ async function geocodeLocation(cityName: string, apiKey: string): Promise<Geocod
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({
+      distanceKm: null,
+      originCoords: null,
+      destCoords: null,
+      reason: `Método não permitido: ${req.method}. Use POST.`,
+    }, 405);
   }
 
   try {
     const TOMTOM_API_KEY = Deno.env.get("TOMTOM_API_KEY");
     if (!TOMTOM_API_KEY) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           distanceKm: null,
           originCoords: null,
           destCoords: null,
           reason: "TOMTOM_API_KEY is not configured",
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+        }, 500);
     }
 
     const { origin, destination } = await req.json();
 
     if (!origin || !destination || typeof origin !== "string" || typeof destination !== "string") {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           distanceKm: null,
           originCoords: null,
           destCoords: null,
           reason: "Missing origin or destination",
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+        }, 400);
     }
 
     const [originGeo, destinationGeo] = await Promise.all([
@@ -123,17 +136,14 @@ serve(async (req) => {
     ]);
 
     if (!originGeo.coords || !destinationGeo.coords) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
           reason: originGeo.reason || destinationGeo.reason || "Não foi possível geocodificar origem/destino.",
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+        }, 200);
     }
 
     const routeResponse = await fetch(
@@ -141,57 +151,45 @@ serve(async (req) => {
     );
 
     if (!routeResponse.ok) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
           reason: `Roteamento falhou (HTTP ${routeResponse.status}).`,
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+        }, 200);
     }
 
     const routeData = await routeResponse.json();
     const routeLengthMeters = routeData?.routes?.[0]?.summary?.lengthInMeters;
 
     if (typeof routeLengthMeters !== "number") {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
           reason: `Roteamento sem rota válida (${routeData?.error?.description || "sem rota"}).`,
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+        }, 200);
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         distanceKm: Math.round(routeLengthMeters / 1000),
         originCoords: originGeo.coords,
         destCoords: destinationGeo.coords,
         reason: null,
         originQueryUsed: originGeo.queryUsed,
         destinationQueryUsed: destinationGeo.queryUsed,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+      }, 200);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         distanceKm: null,
         originCoords: null,
         destCoords: null,
         reason: `Erro inesperado na função de rota: ${errorMessage}`,
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+      }, 500);
   }
 });

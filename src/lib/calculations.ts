@@ -1,11 +1,23 @@
-import { Trip } from "@/types";
+import { Freight, Trip } from "@/types";
+
+function getOperationalFreights(trip: Trip): Freight[] {
+  return trip.freights.filter((freight) => freight.status === "in_progress" || freight.status === "completed");
+}
 
 export function getTripGrossRevenue(trip: Trip): number {
   return trip.freights.reduce((sum, f) => sum + f.grossValue, 0);
 }
 
+export function getTripGrossRevenueToDate(trip: Trip): number {
+  return getOperationalFreights(trip).reduce((sum, f) => sum + f.grossValue, 0);
+}
+
 export function getTripTotalCommissions(trip: Trip): number {
   return trip.freights.reduce((sum, f) => sum + f.commissionValue, 0);
+}
+
+export function getTripTotalCommissionsToDate(trip: Trip): number {
+  return getOperationalFreights(trip).reduce((sum, f) => sum + f.commissionValue, 0);
 }
 
 export function getTripTotalExpenses(trip: Trip): number {
@@ -19,6 +31,10 @@ export function getTripTotalPersonalExpenses(trip: Trip): number {
 
 export function getTripNetRevenue(trip: Trip): number {
   return getTripGrossRevenue(trip) - getTripTotalCommissions(trip) - getTripTotalExpenses(trip) - getTripTotalPersonalExpenses(trip);
+}
+
+export function getTripNetRevenueToDate(trip: Trip): number {
+  return getTripGrossRevenueToDate(trip) - getTripTotalCommissionsToDate(trip) - getTripTotalExpenses(trip) - getTripTotalPersonalExpenses(trip);
 }
 
 export function getTripTotalKm(trip: Trip): number {
@@ -68,10 +84,23 @@ export function getTripCostPerKm(trip: Trip): number {
   return Math.round((totalCost / km) * 100) / 100;
 }
 
+export function getTripCostPerKmToDate(trip: Trip): number {
+  const { km } = getEffectiveKm(trip);
+  if (km === 0) return 0;
+  const totalCost = getTripTotalExpenses(trip) + getTripTotalCommissionsToDate(trip);
+  return Math.round((totalCost / km) * 100) / 100;
+}
+
 export function getTripProfitPerKm(trip: Trip): number {
   const { km } = getEffectiveKm(trip);
   if (km === 0) return 0;
   return Math.round((getTripNetRevenue(trip) / km) * 100) / 100;
+}
+
+export function getTripProfitPerKmToDate(trip: Trip): number {
+  const { km } = getEffectiveKm(trip);
+  if (km === 0) return 0;
+  return Math.round((getTripNetRevenueToDate(trip) / km) * 100) / 100;
 }
 
 export function getLastDestination(trip: Trip): string {

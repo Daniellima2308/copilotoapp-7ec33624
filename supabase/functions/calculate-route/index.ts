@@ -130,10 +130,10 @@ serve(async (req) => {
         }, 400);
     }
 
-    const [originGeo, destinationGeo] = await Promise.all([
-      geocodeLocation(origin, TOMTOM_API_KEY),
-      geocodeLocation(destination, TOMTOM_API_KEY),
-    ]);
+    // Sequential geocoding with delay to respect TomTom 5 QPS limit
+    const originGeo = await geocodeLocation(origin, TOMTOM_API_KEY);
+    await new Promise((r) => setTimeout(r, 250));
+    const destinationGeo = await geocodeLocation(destination, TOMTOM_API_KEY);
 
     if (!originGeo.coords || !destinationGeo.coords) {
       return jsonResponse({

@@ -3,12 +3,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "@/context/app-context";
 import {
   getTripGrossRevenue,
+  getTripGrossRevenueToDate,
   getTripNetRevenue,
+  getTripNetRevenueToDate,
   getTripAverageConsumption,
   getTripCostPerKm,
+  getTripCostPerKmToDate,
   getTripProfitPerKm,
+  getTripProfitPerKmToDate,
   getEffectiveKm,
   getTripTotalCommissions,
+  getTripTotalCommissionsToDate,
   getTripTotalExpenses,
   getTripTotalPersonalExpenses,
   formatCurrency,
@@ -41,6 +46,7 @@ import { ExpenseTab } from "@/components/trip/ExpenseTab";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Trip } from "@/types";
+import { getCurrentFreight } from "@/lib/freightStatus";
 
 type Tab = "freights" | "fuel" | "expenses";
 type InfoState = "LANÇADO" | "ATUAL" | "PREVISTO";
@@ -128,9 +134,12 @@ const TripDetailPage = () => {
   const vehicle = data.vehicles.find((v) => v.id === trip.vehicleId);
   const isOpen = trip.status === "open";
 
-  const gross = getTripGrossRevenue(trip);
-  const commissions = getTripTotalCommissions(trip);
-  const net = getTripNetRevenue(trip);
+  const grossTotal = getTripGrossRevenue(trip);
+  const grossToDate = getTripGrossRevenueToDate(trip);
+  const commissionsTotal = getTripTotalCommissions(trip);
+  const commissionsToDate = getTripTotalCommissionsToDate(trip);
+  const netTotal = getTripNetRevenue(trip);
+  const netToDate = getTripNetRevenueToDate(trip);
   const avgConsumption = getTripAverageConsumption(trip);
   const totalOperationalCosts = getTripTotalExpenses(trip);
   const personalExpenses = getTripTotalPersonalExpenses(trip);
@@ -140,8 +149,10 @@ const TripDetailPage = () => {
   const effectiveKm = getEffectiveKm(trip);
   const hasRealKm = !effectiveKm.isEstimate && effectiveKm.km > 0;
   const hasEstimatedKm = effectiveKm.isEstimate && effectiveKm.km > 0;
-  const costKm = effectiveKm.km > 0 ? getTripCostPerKm(trip) : 0;
-  const profitKm = effectiveKm.km > 0 ? getTripProfitPerKm(trip) : 0;
+  const costKmTotal = effectiveKm.km > 0 ? getTripCostPerKm(trip) : 0;
+  const costKmToDate = effectiveKm.km > 0 ? getTripCostPerKmToDate(trip) : 0;
+  const profitKmTotal = effectiveKm.km > 0 ? getTripProfitPerKm(trip) : 0;
+  const profitKmToDate = effectiveKm.km > 0 ? getTripProfitPerKmToDate(trip) : 0;
 
   const kmLabel = hasRealKm ? "KM rodado" : hasEstimatedKm ? "KM previsto" : "KM da viagem";
   const kmState: InfoState = hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL";
@@ -151,14 +162,18 @@ const TripDetailPage = () => {
       ? "Distância da rota cadastrada."
       : "Aguardando dados da viagem.";
 
-  const profitKmLabel = hasRealKm ? "Lucro/KM real" : hasEstimatedKm ? "Lucro/KM previsto" : "Lucro/KM";
-  const costKmLabel = hasRealKm ? "Custo/KM real" : hasEstimatedKm ? "Custo/KM previsto" : "Custo/KM";
+  const profitKmLabel = isOpen ? "Lucro/KM até agora" : hasRealKm ? "Lucro/KM real" : hasEstimatedKm ? "Lucro/KM previsto" : "Lucro/KM";
+  const costKmLabel = isOpen ? "Custo/KM até agora" : hasRealKm ? "Custo/KM real" : hasEstimatedKm ? "Custo/KM previsto" : "Custo/KM";
 
   const smartBanner = computeSmartBanner(trip, hasRealKm, hasEstimatedKm);
+  const activeFreight = getCurrentFreight(trip);
 
   const handleFinish = async (km: number) => {
-    await finishTrip(trip.id, km);
+    const result = await finishTrip(trip.id, km);
     setShowFinishModal(false);
+    if (result?.autoCompletedFreightId) {
+      window.alert("Viagem finalizada e o frete em andamento foi concluído automaticamente.");
+    }
     navigate("/");
   };
 
@@ -227,49 +242,63 @@ const TripDetailPage = () => {
 
         <div className="grid grid-cols-2 gap-2">
           <MetricCard
-            label="Bruto"
+            label={isOpen ? "Bruto lançado" : "Bruto"}
             state="LANÇADO"
-            value={formatCurrency(gross)}
+            value={formatCurrency(isOpen ? grossToDate : grossTotal)}
             icon={<DollarSign className="w-4 h-4" />}
-            helperText="Valor dos fretes cadastrados."
+            helperText={isOpen ? "Soma de fretes em andamento e concluídos." : "Valor total dos fretes cadastrados."}
             onClick={() => setActiveDetail({
-              title: "Bruto",
-              value: formatCurrency(gross),
-              description: "Esse é o valor total dos fretes lançados na viagem, antes dos descontos.",
-              lines: [{ label: "Valor bruto total", value: formatCurrency(gross) }],
+              title: isOpen ? "Bruto lançado" : "Bruto",
+              value: formatCurrency(isOpen ? grossToDate : grossTotal),
+              description: isOpen
+                ? "Mostra o bruto já lançado em fretes ativos/concluídos, sem incluir fretes apenas planejados."
+                : "Esse é o valor total dos fretes lançados na viagem, antes dos descontos.",
+              lines: isOpen
+                ? [
+                    { label: "Bruto lançado", value: formatCurrency(grossToDate) },
+                    { label: "Bruto planejado total", value: formatCurrency(grossTotal) },
+                  ]
+                : [{ label: "Valor bruto total", value: formatCurrency(grossTotal) }],
             })}
           />
 
           <MetricCard
-            label="Comissão"
+            label={isOpen ? "Comissão lançada" : "Comissão"}
             state="LANÇADO"
-            value={formatCurrency(commissions)}
+            value={formatCurrency(isOpen ? commissionsToDate : commissionsTotal)}
             icon={<Wallet className="w-4 h-4" />}
-            helperText="Valor da comissão do motorista."
+            helperText={isOpen ? "Comissão de fretes em andamento/concluídos." : "Valor da comissão do motorista."}
             onClick={() => setActiveDetail({
-              title: "Comissão",
-              value: formatCurrency(commissions),
-              description: "Esse valor é a soma da comissão dos fretes cadastrados nesta viagem.",
-              lines: commissionsByFreight.length > 1 ? commissionsByFreight : [{ label: "Comissão total", value: formatCurrency(commissions) }],
+              title: isOpen ? "Comissão lançada" : "Comissão",
+              value: formatCurrency(isOpen ? commissionsToDate : commissionsTotal),
+              description: isOpen
+                ? "Soma apenas comissão dos fretes já concluídos ou em andamento."
+                : "Esse valor é a soma da comissão dos fretes cadastrados nesta viagem.",
+              lines: isOpen
+                ? [
+                    { label: "Comissão lançada", value: formatCurrency(commissionsToDate) },
+                    { label: "Comissão planejada total", value: formatCurrency(commissionsTotal) },
+                  ]
+                : commissionsByFreight.length > 1 ? commissionsByFreight : [{ label: "Comissão total", value: formatCurrency(commissionsTotal) }],
             })}
           />
 
           <MetricCard
             label={isOpen ? "Líquido até agora" : "Líquido"}
             state={isOpen ? "ATUAL" : "LANÇADO"}
-            value={formatCurrency(net)}
+            value={formatCurrency(isOpen ? netToDate : netTotal)}
             icon={<TrendingUp className="w-4 h-4" />}
-            valueClass={net >= 0 ? "text-profit" : "text-expense"}
+            valueClass={(isOpen ? netToDate : netTotal) >= 0 ? "text-profit" : "text-expense"}
             helperText={isOpen ? "Esse valor ainda pode mudar." : "Resultado final da viagem."}
             onClick={() => setActiveDetail({
               title: isOpen ? "Líquido até agora" : "Líquido",
-              value: formatCurrency(net),
+              value: formatCurrency(isOpen ? netToDate : netTotal),
               description: isOpen
                 ? "Esse é o valor que sobra até agora. Ele pode mudar até o fim da viagem."
                 : "Esse é o resultado final da viagem.",
               lines: [
-                { label: "Bruto", value: formatCurrency(gross) },
-                { label: "- Comissão", value: formatCurrency(commissions) },
+                { label: "Bruto usado", value: formatCurrency(isOpen ? grossToDate : grossTotal) },
+                { label: "- Comissão usada", value: formatCurrency(isOpen ? commissionsToDate : commissionsTotal) },
                 { label: "- Abastecimentos", value: formatCurrency(fuelingCost) },
                 { label: "- Despesas", value: formatCurrency(otherExpenses) },
                 ...(personalExpenses > 0 ? [{ label: "- Gastos pessoais", value: formatCurrency(personalExpenses) }] : []),
@@ -332,21 +361,21 @@ const TripDetailPage = () => {
           <MetricCard
             label={profitKmLabel}
             state={hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"}
-            value={effectiveKm.km > 0 ? `R$ ${formatNumber(profitKm)}` : "—"}
+            value={effectiveKm.km > 0 ? `R$ ${formatNumber(isOpen ? profitKmToDate : profitKmTotal)}` : "—"}
             icon={<TrendingUp className="w-4 h-4" />}
             valueClass={effectiveKm.km > 0 ? "text-profit" : "text-muted-foreground"}
             helperText={hasRealKm ? "Conta feita com o trecho rodado." : hasEstimatedKm ? "Conta feita pela rota cadastrada." : "Aguardando KM da viagem."}
             onClick={() => setActiveDetail({
               title: profitKmLabel,
-              value: effectiveKm.km > 0 ? `R$ ${formatNumber(profitKm)}` : "—",
+              value: effectiveKm.km > 0 ? `R$ ${formatNumber(isOpen ? profitKmToDate : profitKmTotal)}` : "—",
               description: effectiveKm.km > 0
                 ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}Como o Copiloto chegou nesse valor.`
                 : "Aguardando KM da viagem.",
               lines: effectiveKm.km > 0
                 ? [
-                    { label: "Líquido usado", value: formatCurrency(net) },
+                    { label: "Líquido usado", value: formatCurrency(isOpen ? netToDate : netTotal) },
                     { label: "KM usado", value: `${formatNumber(effectiveKm.km)} km` },
-                    { label: "Conta", value: `${formatCurrency(net)} ÷ ${formatNumber(effectiveKm.km)} km` },
+                    { label: "Conta", value: `${formatCurrency(isOpen ? netToDate : netTotal)} ÷ ${formatNumber(effectiveKm.km)} km` },
                   ]
                 : undefined,
             })}
@@ -355,19 +384,19 @@ const TripDetailPage = () => {
           <MetricCard
             label={costKmLabel}
             state={hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"}
-            value={effectiveKm.km > 0 ? `R$ ${formatNumber(costKm)}` : "—"}
+            value={effectiveKm.km > 0 ? `R$ ${formatNumber(isOpen ? costKmToDate : costKmTotal)}` : "—"}
             icon={<TrendingDown className="w-4 h-4" />}
             valueClass={effectiveKm.km > 0 ? "text-expense" : "text-muted-foreground"}
             helperText={hasRealKm ? "Conta feita com o trecho rodado." : hasEstimatedKm ? "Conta feita pela rota cadastrada." : "Aguardando KM da viagem."}
             onClick={() => setActiveDetail({
               title: costKmLabel,
-              value: effectiveKm.km > 0 ? `R$ ${formatNumber(costKm)}` : "—",
+              value: effectiveKm.km > 0 ? `R$ ${formatNumber(isOpen ? costKmToDate : costKmTotal)}` : "—",
               description: effectiveKm.km > 0
                 ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}Aqui entram comissão, abastecimentos e despesas divididos pelo KM usado.`
                 : "Aguardando KM da viagem.",
               lines: effectiveKm.km > 0
                 ? [
-                    { label: "Comissão", value: formatCurrency(commissions) },
+                    { label: "Comissão usada", value: formatCurrency(isOpen ? commissionsToDate : commissionsTotal) },
                     { label: "Abastecimentos", value: formatCurrency(fuelingCost) },
                     { label: "Despesas", value: formatCurrency(otherExpenses) },
                     { label: "KM usado", value: `${formatNumber(effectiveKm.km)} km` },
@@ -409,6 +438,7 @@ const TripDetailPage = () => {
         open={showFinishModal}
         onClose={() => setShowFinishModal(false)}
         minKm={vehicle?.currentKm || 0}
+        activeFreight={activeFreight ? { origin: activeFreight.origin, destination: activeFreight.destination } : null}
         onConfirm={handleFinish}
       />
     </div>

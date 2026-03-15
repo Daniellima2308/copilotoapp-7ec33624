@@ -65,9 +65,21 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
       destinationQueryUsed: response?.destinationQueryUsed,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+
+    console.error("[routeApi] Falha ao chamar calculate-route", {
+      origin,
+      destination,
+      error,
+    });
+
     return {
       result: null,
-      reason: `Erro ao chamar função de rota: ${error instanceof Error ? error.message : "erro desconhecido"}.`,
+      reason: `Erro ao chamar função de rota: ${errorMessage || "erro desconhecido"}.`,
     };
   }
 }

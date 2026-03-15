@@ -181,7 +181,7 @@ const FreightAnalysisPage = () => {
 
   useEffect(() => {
     if (routeTimerRef.current) clearTimeout(routeTimerRef.current);
-    routeTimerRef.current = setTimeout(() => calcRoute(origin, destination), 600);
+    routeTimerRef.current = setTimeout(() => calcRoute(origin, destination), 1200);
     return () => { if (routeTimerRef.current) clearTimeout(routeTimerRef.current); };
   }, [origin, destination, calcRoute]);
 

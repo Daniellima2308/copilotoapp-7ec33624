@@ -588,12 +588,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      const diagnostics = await Promise.all(
-        freights.map(async (freight) => {
-          const result = await getRouteDistanceDiagnostic(freight.origin, freight.destination);
-          return { ...result, freight };
-        }),
-      );
+      // Sequential route calls to respect TomTom QPS limit
+      const diagnostics: { distanceKm: number | null; reason: string | null; freight: typeof freights[number] }[] = [];
+      for (const freight of freights) {
+        const result = await getRouteDistanceDiagnostic(freight.origin, freight.destination);
+        diagnostics.push({ ...result, freight });
+        if (freights.indexOf(freight) < freights.length - 1) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
 
       const updates = diagnostics
         .filter((d) => typeof d.distanceKm === "number" && d.distanceKm > 0)

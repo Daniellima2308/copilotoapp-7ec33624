@@ -65,6 +65,7 @@ export function ActiveTripCard({ trip }: ActiveTripCardProps) {
         open={showFinishModal}
         onClose={() => setShowFinishModal(false)}
         minKm={vehicle?.currentKm || 0}
+        activeFreight={trip.freights?.find(f => f.status === "em_andamento") ? { origin: trip.freights.find(f => f.status === "em_andamento")!.origin, destination: trip.freights.find(f => f.status === "em_andamento")!.destination } : null}
         onConfirm={handleFinish}
       />
     </>

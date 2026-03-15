@@ -1,26 +1,34 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+import { supabase } from "@/integrations/supabase/client";
+
+function getEdgeErrorMessage(error: unknown): string {
+  if (!error) return "erro desconhecido";
+
+  if (typeof error === "string") return error;
+
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    const maybeError = (error as { error?: unknown }).error;
+
+    if (typeof maybeMessage === "string" && maybeMessage.length > 0) return maybeMessage;
+    if (typeof maybeError === "string" && maybeError.length > 0) return maybeError;
+  }
+
+  return JSON.stringify(error);
+}
 
 export async function invokeEdgeFunction<T = unknown>(
   functionName: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
 ): Promise<T> {
-  const url = `${SUPABASE_URL}/functions/v1/${functionName}`;
-  
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "apikey": SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(body),
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body,
   });
 
-  if (!res.ok) {
-    const errorData = await res.text();
-    throw new Error(`Edge function error [${res.status}]: ${errorData}`);
+  if (error) {
+    throw new Error(`Edge function error: ${getEdgeErrorMessage(error)}`);
   }
 
-  return res.json();
+  return data as T;
 }

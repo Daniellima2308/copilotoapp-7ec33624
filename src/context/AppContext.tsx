@@ -12,6 +12,19 @@ import { getFreightStatusForInsert, normalizeTripFreights } from "@/lib/freightS
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+
+function buildRouteFailureDetails(params: {
+  reason: string | null;
+  originQueryUsed?: string;
+  destinationQueryUsed?: string;
+}): string {
+  const reason = params.reason || "Motivo não informado pela função de rota.";
+  const queryInfo = params.originQueryUsed && params.destinationQueryUsed
+    ? ` Origem usada: ${params.originQueryUsed}. Destino usado: ${params.destinationQueryUsed}.`
+    : "";
+  return `${reason}${queryInfo}`;
+}
+
 interface LastFullTankFueling {
   kmCurrent: number;
   tripId: string;
@@ -606,6 +619,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const failedRoutes = diagnostics.filter((d) => d.distanceKm === null);
       if (failedRoutes.length > 0) {
         console.error("Falha ao calcular rota estimada de alguns fretes", failedRoutes);
+        const firstFailure = failedRoutes[0];
+        toast({
+          title: "Falha ao calcular rota estimada",
+          description: buildRouteFailureDetails({
+            reason: firstFailure.reason,
+            originQueryUsed: firstFailure.originQueryUsed,
+            destinationQueryUsed: firstFailure.destinationQueryUsed,
+          }),
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Falha ao recalcular distância estimada da viagem", error);
@@ -661,6 +684,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const estimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
       ? distanceDiagnostic.distanceKm
       : 0;
+
+    if (distanceDiagnostic.distanceKm === null) {
+      const description = buildRouteFailureDetails({
+        reason: distanceDiagnostic.reason,
+        originQueryUsed: distanceDiagnostic.originQueryUsed,
+        destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
+      });
+
+      toast({
+        title: "Falha ao calcular rota estimada",
+        description,
+        variant: "destructive",
+      });
+
+      console.error("Falha no diagnóstico de rota ao criar frete", {
+        tripId,
+        origin: f.origin,
+        destination: f.destination,
+        reason: distanceDiagnostic.reason,
+        originQueryUsed: distanceDiagnostic.originQueryUsed,
+        destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
+      });
+    }
 
     const { error: freightInsertError } = await supabase.from("freights").insert({
       trip_id: tripId, user_id: user.id, origin: f.origin, destination: f.destination,

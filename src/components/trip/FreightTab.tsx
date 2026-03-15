@@ -182,6 +182,11 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           <div className="rounded-md bg-secondary/60 p-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">KM estimado</p>
             <p className="text-sm font-mono font-bold">{formatNumber(f.estimatedDistance || 0)} km</p>
+            {f.estimatedDistance <= 0 && (
+              <p className="mt-1 text-[11px] text-warning">
+                Não foi possível calcular a rota estimada. Verifique o motivo no aviso exibido ao salvar.
+              </p>
+            )}
           </div>
 
           {isOpen && (

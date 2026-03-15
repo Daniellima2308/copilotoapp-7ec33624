@@ -89,7 +89,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
               </div>
             </>
           ) : (
-            <p className="text-xs text-muted-foreground">Frete em andamento sem distância estimada para calcular previsão.</p>
+            <p className="text-xs text-warning">Não foi possível calcular a rota estimada deste frete. Consulte o aviso de diagnóstico para ver o motivo.</p>
           )}
         </div>
       ) : (

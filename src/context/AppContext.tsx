@@ -589,7 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Sequential route calls to respect TomTom QPS limit
-      const diagnostics: { distanceKm: number | null; reason: string | null; freight: typeof freights[number] }[] = [];
+      const diagnostics: { distanceKm: number | null; reason: string | null; originQueryUsed?: string; destinationQueryUsed?: string; freight: typeof freights[number] }[] = [];
       for (const freight of freights) {
         const result = await getRouteDistanceDiagnostic(freight.origin, freight.destination);
         diagnostics.push({ ...result, freight });

@@ -65,6 +65,8 @@ describe("routeApi diagnostics", () => {
   it("normaliza rota removendo acentos e padronizando separadores", () => {
     expect(normalizeRouteLabel("  São   Paulo - SP ")).toBe("sao paulo, sp");
     expect(normalizeRouteLabel("Canoas,RS")).toBe("canoas, rs");
+    expect(normalizeRouteLabel("São Paulo/SP/Brazil")).toBe("sao paulo, sp");
+    expect(normalizeRouteLabel("Campinas - SP - Brasil")).toBe("campinas, sp");
   });
 
   it("retorna rota quando edge function responde com sucesso", async () => {
@@ -134,6 +136,46 @@ describe("routeApi diagnostics", () => {
 
     expect(result.distanceKm).toBeNull();
     expect(result.reason).toContain("TOMTOM_API_KEY");
+  });
+
+
+  it("não atualiza telemetria em cache hit recente", async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: { id: "cache-1", distance_km: 450, hit_count: 3, last_used_at: new Date().toISOString() },
+      error: null,
+    });
+
+    const result = await getRouteDistanceDiagnosticWithCache({
+      origin: "Canoas - RS",
+      destination: "São Paulo - SP",
+      userId: "user-1",
+    });
+
+    expect(result.distanceKm).toBe(450);
+    expect(result.source).toBe("cache");
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(invokeEdgeFunction).not.toHaveBeenCalled();
+  });
+
+  it("força refresh manual ignorando lookup em cache", async () => {
+    vi.mocked(invokeEdgeFunction).mockResolvedValue({
+      distanceKm: 1110,
+      originCoords: { lat: -29.918, lon: -51.179 },
+      destCoords: { lat: -23.55, lon: -46.633 },
+      reason: null,
+    });
+
+    const result = await getRouteDistanceDiagnosticWithCache({
+      origin: "Canoas - RS",
+      destination: "São Paulo - SP",
+      userId: "user-1",
+      forceRefresh: true,
+    });
+
+    expect(result.distanceKm).toBe(1110);
+    expect(result.source).toBe("provider");
+    expect(selectMock).not.toHaveBeenCalled();
+    expect(upsertMock).toHaveBeenCalledTimes(1);
   });
 
   it("faz upsert no cache quando calcula rota no provider", async () => {

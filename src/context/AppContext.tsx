@@ -54,6 +54,24 @@ async function resolveFreightEstimatedDistance(params: {
   };
 }
 
+async function refreshFreightEstimatedDistance(params: {
+  userId: string;
+  origin: string;
+  destination: string;
+}): Promise<FreightRouteResolution> {
+  const { refreshRouteDistanceCache } = await import("@/lib/routeApi");
+  const diagnostic = await refreshRouteDistanceCache({
+    origin: params.origin,
+    destination: params.destination,
+    userId: params.userId,
+  });
+
+  return {
+    estimatedDistance: diagnostic.distanceKm && diagnostic.distanceKm > 0 ? diagnostic.distanceKm : 0,
+    diagnostic,
+  };
+}
+
 async function updateTripEstimatedDistanceBySum(tripId: string): Promise<void> {
   const { data: dbFreights, error: freightsError } = await supabase
     .from("freights")
@@ -889,13 +907,11 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
     let nextEstimatedDistance = currentFreight.estimated_distance || 0;
 
     if (routeChanged) {
-const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
+      const { estimatedDistance, diagnostic: distanceDiagnostic } = await refreshFreightEstimatedDistance({
         origin: f.origin,
         destination: f.destination,
         userId: user.id,
       });
-
-nextEstimatedDistance = estimatedDistance;
 
       if (distanceDiagnostic.distanceKm === null) {
         const description = buildRouteFailureDetails({
@@ -905,8 +921,8 @@ nextEstimatedDistance = estimatedDistance;
         });
 
         toast({
-          title: "Falha ao calcular rota estimada",
-          description,
+          title: "Rota não atualizada",
+          description: `Não foi possível validar a nova origem/destino. O frete manteve os dados anteriores. ${description}`,
           variant: "destructive",
         });
 
@@ -919,7 +935,11 @@ nextEstimatedDistance = estimatedDistance;
           originQueryUsed: distanceDiagnostic.originQueryUsed,
           destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
         });
+
+        return;
       }
+
+      nextEstimatedDistance = estimatedDistance;
     }
 
     await supabase.from("freights").update({

@@ -37,18 +37,42 @@ interface RouteResolution {
 }
 
 const ROUTE_PROVIDER = "tomtom";
+const CACHE_HIT_WRITE_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const COUNTRY_TOKENS = new Set(["brazil", "brasil", "br"]);
 
 export function normalizeRouteLabel(value: string): string {
-  return value
+  const normalized = value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/\s*[–—-]\s*/g, ", ")
+    .replace(/[/|]+/g, ",")
+    .replace(/\s*[–—-]\s*/g, ",")
+    .replace(/\s*;\s*/g, ",")
     .replace(/\s*,\s*/g, ", ")
     .replace(/\s+/g, " ")
     .replace(/,+/g, ",")
     .replace(/,\s*/g, ", ")
     .trim();
+
+  const tokens = normalized
+    .split(",")
+    .map((token) => token.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+
+  while (tokens.length > 2 && COUNTRY_TOKENS.has(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+
+  return tokens.join(", ");
+}
+
+function shouldUpdateCacheHitMetadata(lastUsedAt: string | null): boolean {
+  if (!lastUsedAt) return true;
+
+  const lastUsedMs = Date.parse(lastUsedAt);
+  if (Number.isNaN(lastUsedMs)) return true;
+
+  return Date.now() - lastUsedMs >= CACHE_HIT_WRITE_MIN_INTERVAL_MS;
 }
 
 async function resolveRoute(origin: string, destination: string): Promise<RouteResolution> {
@@ -118,44 +142,52 @@ export async function getRouteDistanceDiagnostic(origin: string, destination: st
 }
 
 export async function getRouteDistanceDiagnosticWithCache(
-  params: { origin: string; destination: string; userId: string },
+  params: { origin: string; destination: string; userId: string; forceRefresh?: boolean },
 ): Promise<RouteDistanceDiagnostic> {
   const originNormalized = normalizeRouteLabel(params.origin);
   const destinationNormalized = normalizeRouteLabel(params.destination);
 
-  const { data: cachedRoute, error: cacheLookupError } = await supabase
-    .from("route_cache")
-    .select("id, distance_km, hit_count")
-    .eq("user_id", params.userId)
-    .eq("origin_normalized", originNormalized)
-    .eq("destination_normalized", destinationNormalized)
-    .maybeSingle();
+  let cachedRoute: { id: string; distance_km: number | null; hit_count: number | null; last_used_at: string | null } | null = null;
 
-  if (cacheLookupError) {
-    console.error("[routeApi] Falha no lookup do route_cache", {
-      origin: params.origin,
-      destination: params.destination,
-      originNormalized,
-      destinationNormalized,
-      error: cacheLookupError,
-    });
+  if (!params.forceRefresh) {
+    const { data, error: cacheLookupError } = await supabase
+      .from("route_cache")
+      .select("id, distance_km, hit_count, last_used_at")
+      .eq("user_id", params.userId)
+      .eq("origin_normalized", originNormalized)
+      .eq("destination_normalized", destinationNormalized)
+      .maybeSingle();
+
+    cachedRoute = data;
+
+    if (cacheLookupError) {
+      console.error("[routeApi] Falha no lookup do route_cache", {
+        origin: params.origin,
+        destination: params.destination,
+        originNormalized,
+        destinationNormalized,
+        error: cacheLookupError,
+      });
+    }
   }
 
   if (cachedRoute && typeof cachedRoute.distance_km === "number" && cachedRoute.distance_km > 0) {
-    const nowIso = new Date().toISOString();
-    const { error: cacheHitError } = await supabase
-      .from("route_cache")
-      .update({
-        hit_count: (cachedRoute.hit_count || 0) + 1,
-        last_used_at: nowIso,
-      })
-      .eq("id", cachedRoute.id);
+    if (shouldUpdateCacheHitMetadata(cachedRoute.last_used_at)) {
+      const nowIso = new Date().toISOString();
+      const { error: cacheHitError } = await supabase
+        .from("route_cache")
+        .update({
+          hit_count: (cachedRoute.hit_count || 0) + 1,
+          last_used_at: nowIso,
+        })
+        .eq("id", cachedRoute.id);
 
-    if (cacheHitError) {
-      console.error("[routeApi] Falha ao atualizar hit_count do route_cache", {
-        routeCacheId: cachedRoute.id,
-        error: cacheHitError,
-      });
+      if (cacheHitError) {
+        console.error("[routeApi] Falha ao atualizar hit_count do route_cache", {
+          routeCacheId: cachedRoute.id,
+          error: cacheHitError,
+        });
+      }
     }
 
     return {
@@ -184,7 +216,6 @@ export async function getRouteDistanceDiagnosticWithCache(
           destination_lat: resolved.result.destCoords.lat,
           destination_lon: resolved.result.destCoords.lon,
           provider: ROUTE_PROVIDER,
-          hit_count: 0,
           last_verified_at: nowIso,
           last_used_at: nowIso,
         },
@@ -195,6 +226,7 @@ export async function getRouteDistanceDiagnosticWithCache(
       console.error("[routeApi] Falha ao persistir route_cache", {
         origin: params.origin,
         destination: params.destination,
+        forceRefresh: Boolean(params.forceRefresh),
         error: upsertError,
       });
     }
@@ -207,6 +239,17 @@ export async function getRouteDistanceDiagnosticWithCache(
     destinationQueryUsed: resolved.destinationQueryUsed,
     source: "provider",
   };
+}
+
+export async function refreshRouteDistanceCache(params: {
+  origin: string;
+  destination: string;
+  userId: string;
+}): Promise<RouteDistanceDiagnostic> {
+  return getRouteDistanceDiagnosticWithCache({
+    ...params,
+    forceRefresh: true,
+  });
 }
 
 export async function getRouteInfo(origin: string, destination: string): Promise<RouteResult | null> {

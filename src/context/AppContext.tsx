@@ -25,6 +25,57 @@ function buildRouteFailureDetails(params: {
   return `${reason}${queryInfo}`;
 }
 
+interface FreightRouteResolution {
+  estimatedDistance: number;
+  diagnostic: {
+    distanceKm: number | null;
+    reason: string | null;
+    originQueryUsed?: string;
+    destinationQueryUsed?: string;
+    source?: "cache" | "provider";
+  };
+}
+
+async function resolveFreightEstimatedDistance(params: {
+  userId: string;
+  origin: string;
+  destination: string;
+}): Promise<FreightRouteResolution> {
+  const { getRouteDistanceDiagnosticWithCache } = await import("@/lib/routeApi");
+  const diagnostic = await getRouteDistanceDiagnosticWithCache({
+    origin: params.origin,
+    destination: params.destination,
+    userId: params.userId,
+  });
+
+  return {
+    estimatedDistance: diagnostic.distanceKm && diagnostic.distanceKm > 0 ? diagnostic.distanceKm : 0,
+    diagnostic,
+  };
+}
+
+async function updateTripEstimatedDistanceBySum(tripId: string): Promise<void> {
+  const { data: dbFreights, error: freightsError } = await supabase
+    .from("freights")
+    .select("estimated_distance")
+    .eq("trip_id", tripId);
+
+  if (freightsError) {
+    throw new Error(freightsError.message || "Falha ao carregar fretes para somar distância estimada.");
+  }
+
+  const totalEstimated = (dbFreights || []).reduce((sum, freight) => sum + (freight.estimated_distance || 0), 0);
+
+  const { error: tripUpdateError } = await supabase
+    .from("trips")
+    .update({ estimated_distance: totalEstimated })
+    .eq("id", tripId);
+
+  if (tripUpdateError) {
+    throw new Error(tripUpdateError.message || "Falha ao salvar distância estimada da viagem.");
+  }
+}
+
 interface LastFullTankFueling {
   kmCurrent: number;
   tripId: string;
@@ -356,6 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (queue.length === 0 || !user) return;
 
       let syncErrors = 0;
+      const affectedTripIds = new Set<string>();
+      const routeSyncFailures: string[] = [];
+
       for (const action of queue) {
         try {
           switch (action.type) {
@@ -368,12 +422,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             case "addPersonalExpense":
               await supabase.from("personal_expenses").insert({ ...action.payload, user_id: user.id });
               break;
-            case "addFreight":
-              await supabase.from("freights").insert({ ...action.payload, user_id: user.id });
+            case "addFreight": {
+              const { estimatedDistance, diagnostic } = await resolveFreightEstimatedDistance({
+                userId: user.id,
+                origin: action.payload.origin,
+                destination: action.payload.destination,
+              });
+
+              await supabase.from("freights").insert({
+                ...action.payload,
+                user_id: user.id,
+                estimated_distance: estimatedDistance,
+              });
+
+              affectedTripIds.add(action.payload.trip_id);
+
+              if (diagnostic.distanceKm === null) {
+                const details = buildRouteFailureDetails({
+                  reason: diagnostic.reason,
+                  originQueryUsed: diagnostic.originQueryUsed,
+                  destinationQueryUsed: diagnostic.destinationQueryUsed,
+                });
+                routeSyncFailures.push(details);
+                console.error("Falha ao resolver rota durante sync offline de frete", {
+                  tripId: action.payload.trip_id,
+                  origin: action.payload.origin,
+                  destination: action.payload.destination,
+                  reason: diagnostic.reason,
+                  originQueryUsed: diagnostic.originQueryUsed,
+                  destinationQueryUsed: diagnostic.destinationQueryUsed,
+                });
+              }
               break;
-            case "deleteFreight":
+            }
+            case "deleteFreight": {
+              const { data: freightBeforeDelete } = await supabase
+                .from("freights")
+                .select("trip_id")
+                .eq("id", action.payload.id)
+                .maybeSingle();
+
               await supabase.from("freights").delete().eq("id", action.payload.id);
+
+              if (freightBeforeDelete?.trip_id) {
+                affectedTripIds.add(freightBeforeDelete.trip_id);
+              }
               break;
+            }
             case "deleteFueling":
               await supabase.from("expenses").delete().eq("source_fueling_id", action.payload.id);
               await supabase.from("fuelings").delete().eq("id", action.payload.id);
@@ -400,6 +495,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           syncErrors++;
         }
       }
+
+      if (affectedTripIds.size > 0) {
+        const tripIds = Array.from(affectedTripIds);
+        const { data: tripsForKm } = await supabase
+          .from("trips")
+          .select("id, vehicle_id")
+          .in("id", tripIds);
+
+        const affectedVehicleIds = new Set((tripsForKm || []).map((trip) => trip.vehicle_id));
+
+        for (const tripId of tripIds) {
+          try {
+            await updateTripEstimatedDistanceBySum(tripId);
+          } catch (error) {
+            console.error("Falha ao atualizar distância estimada após sync offline", { tripId, error });
+            syncErrors++;
+          }
+        }
+
+        for (const vehicleId of affectedVehicleIds) {
+          try {
+            await recalculateVehicleKm(vehicleId);
+          } catch (error) {
+            console.error("Falha ao recalcular odômetro após sync offline", { vehicleId, error });
+            syncErrors++;
+          }
+        }
+      }
+
+      if (routeSyncFailures.length > 0) {
+        toast({
+          title: "Frete sincronizado sem rota estimada",
+          description: routeSyncFailures[0],
+          variant: "destructive",
+        });
+      }
+
       if (syncErrors === 0) {
         toast({ title: "Dados sincronizados!", description: "Suas ações offline foram enviadas para a nuvem." });
       } else {
@@ -569,25 +701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recalculateTripEstimatedDistance = useCallback(async (tripId: string) => {
     try {
-      const { data: dbFreights, error: freightsError } = await supabase
-        .from("freights")
-        .select("estimated_distance")
-        .eq("trip_id", tripId);
-
-      if (freightsError) {
-        throw new Error(freightsError.message || "Falha ao carregar fretes para somar distância estimada.");
-      }
-
-      const totalEstimated = (dbFreights || []).reduce((sum, freight) => sum + (freight.estimated_distance || 0), 0);
-
-      const { error: tripUpdateError } = await supabase
-        .from("trips")
-        .update({ estimated_distance: totalEstimated })
-        .eq("id", tripId);
-
-      if (tripUpdateError) {
-        throw new Error(tripUpdateError.message || "Falha ao salvar distância estimada da viagem.");
-      }
+await updateTripEstimatedDistanceBySum(tripId);
     } catch (error) {
       console.error("Falha ao recalcular distância estimada da viagem", error);
       toast({
@@ -637,15 +751,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const { getRouteDistanceDiagnosticWithCache } = await import("@/lib/routeApi");
-    const distanceDiagnostic = await getRouteDistanceDiagnosticWithCache({
+const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
       origin: f.origin,
       destination: f.destination,
       userId: user.id,
     });
-    const estimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
-      ? distanceDiagnostic.distanceKm
-      : 0;
 
     if (distanceDiagnostic.distanceKm === null) {
       const description = buildRouteFailureDetails({
@@ -779,16 +889,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let nextEstimatedDistance = currentFreight.estimated_distance || 0;
 
     if (routeChanged) {
-      const { getRouteDistanceDiagnosticWithCache } = await import("@/lib/routeApi");
-      const distanceDiagnostic = await getRouteDistanceDiagnosticWithCache({
+const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
         origin: f.origin,
         destination: f.destination,
         userId: user.id,
       });
 
-      nextEstimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
-        ? distanceDiagnostic.distanceKm
-        : 0;
+nextEstimatedDistance = estimatedDistance;
 
       if (distanceDiagnostic.distanceKm === null) {
         const description = buildRouteFailureDetails({

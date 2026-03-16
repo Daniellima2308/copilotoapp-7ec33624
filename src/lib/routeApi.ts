@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { invokeEdgeFunction } from "./supabaseClient";
 
 interface Coordinates {
@@ -16,6 +17,7 @@ export interface RouteDistanceDiagnostic {
   reason: string | null;
   originQueryUsed?: string;
   destinationQueryUsed?: string;
+  source?: "cache" | "provider";
 }
 
 interface RouteFunctionResponse {
@@ -32,6 +34,21 @@ interface RouteResolution {
   reason: string | null;
   originQueryUsed?: string;
   destinationQueryUsed?: string;
+}
+
+const ROUTE_PROVIDER = "tomtom";
+
+export function normalizeRouteLabel(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s*[–—-]\s*/g, ", ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .replace(/,+/g, ",")
+    .replace(/,\s*/g, ", ")
+    .trim();
 }
 
 async function resolveRoute(origin: string, destination: string): Promise<RouteResolution> {
@@ -96,6 +113,99 @@ export async function getRouteDistanceDiagnostic(origin: string, destination: st
     reason: resolved.reason,
     originQueryUsed: resolved.originQueryUsed,
     destinationQueryUsed: resolved.destinationQueryUsed,
+    source: "provider",
+  };
+}
+
+export async function getRouteDistanceDiagnosticWithCache(
+  params: { origin: string; destination: string; userId: string },
+): Promise<RouteDistanceDiagnostic> {
+  const originNormalized = normalizeRouteLabel(params.origin);
+  const destinationNormalized = normalizeRouteLabel(params.destination);
+
+  const { data: cachedRoute, error: cacheLookupError } = await supabase
+    .from("route_cache")
+    .select("id, distance_km, hit_count")
+    .eq("user_id", params.userId)
+    .eq("origin_normalized", originNormalized)
+    .eq("destination_normalized", destinationNormalized)
+    .maybeSingle();
+
+  if (cacheLookupError) {
+    console.error("[routeApi] Falha no lookup do route_cache", {
+      origin: params.origin,
+      destination: params.destination,
+      originNormalized,
+      destinationNormalized,
+      error: cacheLookupError,
+    });
+  }
+
+  if (cachedRoute && typeof cachedRoute.distance_km === "number" && cachedRoute.distance_km > 0) {
+    const nowIso = new Date().toISOString();
+    const { error: cacheHitError } = await supabase
+      .from("route_cache")
+      .update({
+        hit_count: (cachedRoute.hit_count || 0) + 1,
+        last_used_at: nowIso,
+      })
+      .eq("id", cachedRoute.id);
+
+    if (cacheHitError) {
+      console.error("[routeApi] Falha ao atualizar hit_count do route_cache", {
+        routeCacheId: cachedRoute.id,
+        error: cacheHitError,
+      });
+    }
+
+    return {
+      distanceKm: cachedRoute.distance_km,
+      reason: null,
+      source: "cache",
+    };
+  }
+
+  const resolved = await resolveRoute(params.origin, params.destination);
+
+  if (resolved.result) {
+    const nowIso = new Date().toISOString();
+    const { error: upsertError } = await supabase
+      .from("route_cache")
+      .upsert(
+        {
+          user_id: params.userId,
+          origin_label: params.origin,
+          destination_label: params.destination,
+          origin_normalized: originNormalized,
+          destination_normalized: destinationNormalized,
+          distance_km: resolved.result.distanceKm,
+          origin_lat: resolved.result.originCoords.lat,
+          origin_lon: resolved.result.originCoords.lon,
+          destination_lat: resolved.result.destCoords.lat,
+          destination_lon: resolved.result.destCoords.lon,
+          provider: ROUTE_PROVIDER,
+          hit_count: 0,
+          last_verified_at: nowIso,
+          last_used_at: nowIso,
+        },
+        { onConflict: "user_id,origin_normalized,destination_normalized" },
+      );
+
+    if (upsertError) {
+      console.error("[routeApi] Falha ao persistir route_cache", {
+        origin: params.origin,
+        destination: params.destination,
+        error: upsertError,
+      });
+    }
+  }
+
+  return {
+    distanceKm: resolved.result?.distanceKm ?? null,
+    reason: resolved.reason,
+    originQueryUsed: resolved.originQueryUsed,
+    destinationQueryUsed: resolved.destinationQueryUsed,
+    source: "provider",
   };
 }
 

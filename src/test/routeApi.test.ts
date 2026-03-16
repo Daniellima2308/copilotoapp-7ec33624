@@ -1,14 +1,70 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getRouteDistanceDiagnostic } from "@/lib/routeApi";
-import { invokeEdgeFunction } from "@/lib/supabaseClient";
+
+const {
+  maybeSingleMock,
+  selectMock,
+  eqMock,
+  updateEqMock,
+  updateMock,
+  upsertMock,
+  fromMock,
+  invokeEdgeFunctionMock,
+} = vi.hoisted(() => {
+  const maybeSingleMock = vi.fn();
+  const eqMock = vi.fn((column: string) => {
+    if (column === "destination_normalized") {
+      return { maybeSingle: maybeSingleMock };
+    }
+    return { eq: eqMock };
+  });
+  const selectMock = vi.fn(() => ({ eq: eqMock }));
+  const updateEqMock = vi.fn().mockResolvedValue({ error: null });
+  const updateMock = vi.fn(() => ({ eq: updateEqMock }));
+  const upsertMock = vi.fn().mockResolvedValue({ error: null });
+  const fromMock = vi.fn(() => ({
+    select: selectMock,
+    update: updateMock,
+    upsert: upsertMock,
+  }));
+  const invokeEdgeFunctionMock = vi.fn();
+
+  return {
+    maybeSingleMock,
+    selectMock,
+    eqMock,
+    updateEqMock,
+    updateMock,
+    upsertMock,
+    fromMock,
+    invokeEdgeFunctionMock,
+  };
+});
 
 vi.mock("@/lib/supabaseClient", () => ({
-  invokeEdgeFunction: vi.fn(),
+  invokeEdgeFunction: invokeEdgeFunctionMock,
 }));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: fromMock,
+  },
+}));
+
+import { getRouteDistanceDiagnostic, getRouteDistanceDiagnosticWithCache, normalizeRouteLabel } from "@/lib/routeApi";
+import { invokeEdgeFunction } from "@/lib/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 
 describe("routeApi diagnostics", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    maybeSingleMock.mockReset();
+    updateEqMock.mockResolvedValue({ error: null });
+    upsertMock.mockResolvedValue({ error: null });
+  });
+
+  it("normaliza rota removendo acentos e padronizando separadores", () => {
+    expect(normalizeRouteLabel("  São   Paulo - SP ")).toBe("sao paulo, sp");
+    expect(normalizeRouteLabel("Canoas,RS")).toBe("canoas, rs");
   });
 
   it("retorna rota quando edge function responde com sucesso", async () => {
@@ -25,15 +81,29 @@ describe("routeApi diagnostics", () => {
 
     expect(result.distanceKm).toBe(1110);
     expect(result.reason).toBeNull();
-    expect(result.originQueryUsed).toBe("Canoas, RS, Brazil");
-    expect(result.destinationQueryUsed).toBe("São Paulo, SP, Brazil");
-    expect(invokeEdgeFunction).toHaveBeenCalledWith("calculate-route", {
+    expect(result.source).toBe("provider");
+  });
+
+  it("usa cache quando rota já existe", async () => {
+    maybeSingleMock.mockResolvedValue({
+      data: { id: "cache-1", distance_km: 450, hit_count: 3 },
+      error: null,
+    });
+
+    const result = await getRouteDistanceDiagnosticWithCache({
       origin: "Canoas - RS",
       destination: "São Paulo - SP",
+      userId: "user-1",
     });
+
+    expect(result.distanceKm).toBe(450);
+    expect(result.source).toBe("cache");
+    expect(invokeEdgeFunction).not.toHaveBeenCalled();
+    expect(updateMock).toHaveBeenCalled();
   });
 
   it("retorna motivo quando edge function retorna falha de geocodificação", async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: null });
     vi.mocked(invokeEdgeFunction).mockResolvedValue({
       distanceKm: null,
       originCoords: null,
@@ -41,18 +111,47 @@ describe("routeApi diagnostics", () => {
       reason: 'Sem resultado para "Origem inválida, Brazil".',
     });
 
-    const result = await getRouteDistanceDiagnostic("Origem inválida", "Destino inválido");
+    const result = await getRouteDistanceDiagnosticWithCache({
+      origin: "Origem inválida",
+      destination: "Destino inválido",
+      userId: "user-1",
+    });
 
     expect(result.distanceKm).toBeNull();
     expect(result.reason).toContain("Sem resultado");
+    expect(result.source).toBe("provider");
   });
 
   it("retorna motivo quando chamada da edge function falha", async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: null });
     vi.mocked(invokeEdgeFunction).mockRejectedValue(new Error("Edge function error [500]: TOMTOM_API_KEY is not configured"));
 
-    const result = await getRouteDistanceDiagnostic("Canoas - RS", "São Paulo - SP");
+    const result = await getRouteDistanceDiagnosticWithCache({
+      origin: "Canoas - RS",
+      destination: "São Paulo - SP",
+      userId: "user-1",
+    });
 
     expect(result.distanceKm).toBeNull();
     expect(result.reason).toContain("TOMTOM_API_KEY");
+  });
+
+  it("faz upsert no cache quando calcula rota no provider", async () => {
+    maybeSingleMock.mockResolvedValue({ data: null, error: null });
+    vi.mocked(invokeEdgeFunction).mockResolvedValue({
+      distanceKm: 1110,
+      originCoords: { lat: -29.918, lon: -51.179 },
+      destCoords: { lat: -23.55, lon: -46.633 },
+      reason: null,
+    });
+
+    await getRouteDistanceDiagnosticWithCache({
+      origin: "Canoas - RS",
+      destination: "São Paulo - SP",
+      userId: "user-1",
+    });
+
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    expect(supabase.from).toHaveBeenCalledWith("route_cache");
   });
 });

@@ -701,7 +701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recalculateTripEstimatedDistance = useCallback(async (tripId: string) => {
     try {
-      await updateTripEstimatedDistanceBySum(tripId);
+await updateTripEstimatedDistanceBySum(tripId);
     } catch (error) {
       console.error("Falha ao recalcular distância estimada da viagem", error);
       toast({
@@ -751,7 +751,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
+const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
       origin: f.origin,
       destination: f.destination,
       userId: user.id,
@@ -889,13 +889,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let nextEstimatedDistance = currentFreight.estimated_distance || 0;
 
     if (routeChanged) {
-      const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
+const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreightEstimatedDistance({
         origin: f.origin,
         destination: f.destination,
         userId: user.id,
       });
 
-      nextEstimatedDistance = estimatedDistance;
+nextEstimatedDistance = estimatedDistance;
 
       if (distanceDiagnostic.distanceKm === null) {
         const description = buildRouteFailureDetails({

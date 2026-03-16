@@ -569,46 +569,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recalculateTripEstimatedDistance = useCallback(async (tripId: string) => {
     try {
-      const { getRouteDistanceDiagnostic } = await import("@/lib/routeApi");
       const { data: dbFreights, error: freightsError } = await supabase
         .from("freights")
-        .select("id, origin, destination")
+        .select("estimated_distance")
         .eq("trip_id", tripId);
 
       if (freightsError) {
-        throw new Error(freightsError.message || "Falha ao carregar fretes para calcular rota.");
+        throw new Error(freightsError.message || "Falha ao carregar fretes para somar distância estimada.");
       }
 
-      const freights = dbFreights || [];
-      if (freights.length === 0) {
-        const { error: tripUpdateError } = await supabase.from("trips").update({ estimated_distance: 0 }).eq("id", tripId);
-        if (tripUpdateError) {
-          throw new Error(tripUpdateError.message || "Falha ao atualizar distância estimada da viagem.");
-        }
-        return;
-      }
-
-      // Sequential route calls to respect TomTom QPS limit
-      const diagnostics: { distanceKm: number | null; reason: string | null; originQueryUsed?: string; destinationQueryUsed?: string; freight: typeof freights[number] }[] = [];
-      for (const freight of freights) {
-        const result = await getRouteDistanceDiagnostic(freight.origin, freight.destination);
-        diagnostics.push({ ...result, freight });
-        if (freights.indexOf(freight) < freights.length - 1) {
-          await new Promise((r) => setTimeout(r, 300));
-        }
-      }
-
-      const updates = diagnostics
-        .filter((d) => typeof d.distanceKm === "number" && d.distanceKm > 0)
-        .map((d) => ({ id: d.freight.id, estimatedDistance: d.distanceKm as number }));
-
-      await Promise.all(
-        updates.map((update) =>
-          supabase.from("freights").update({ estimated_distance: update.estimatedDistance }).eq("id", update.id),
-        ),
-      );
-
-      const totalEstimated = updates.reduce((sum, item) => sum + item.estimatedDistance, 0);
+      const totalEstimated = (dbFreights || []).reduce((sum, freight) => sum + (freight.estimated_distance || 0), 0);
 
       const { error: tripUpdateError } = await supabase
         .from("trips")
@@ -617,21 +587,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (tripUpdateError) {
         throw new Error(tripUpdateError.message || "Falha ao salvar distância estimada da viagem.");
-      }
-
-      const failedRoutes = diagnostics.filter((d) => d.distanceKm === null);
-      if (failedRoutes.length > 0) {
-        console.error("Falha ao calcular rota estimada de alguns fretes", failedRoutes);
-        const firstFailure = failedRoutes[0];
-        toast({
-          title: "Falha ao calcular rota estimada",
-          description: buildRouteFailureDetails({
-            reason: firstFailure.reason,
-            originQueryUsed: firstFailure.originQueryUsed,
-            destinationQueryUsed: firstFailure.destinationQueryUsed,
-          }),
-          variant: "destructive",
-        });
       }
     } catch (error) {
       console.error("Falha ao recalcular distância estimada da viagem", error);
@@ -682,8 +637,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    const { getRouteDistanceDiagnostic } = await import("@/lib/routeApi");
-    const distanceDiagnostic = await getRouteDistanceDiagnostic(f.origin, f.destination);
+    const { getRouteDistanceDiagnosticWithCache } = await import("@/lib/routeApi");
+    const distanceDiagnostic = await getRouteDistanceDiagnosticWithCache({
+      origin: f.origin,
+      destination: f.destination,
+      userId: user.id,
+    });
     const estimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
       ? distanceDiagnostic.distanceKm
       : 0;
@@ -805,9 +764,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showWarnings(getNumericWarnings({ totalValue: f.grossValue, commissionPercent: f.commissionPercent }));
 
     const commissionValue = f.grossValue * (f.commissionPercent / 100);
+
+    const { data: currentFreight, error: currentFreightError } = await supabase
+      .from("freights")
+      .select("origin, destination, estimated_distance")
+      .eq("id", freightId)
+      .single();
+
+    if (currentFreightError) {
+      throw new Error(currentFreightError.message || "Falha ao carregar dados atuais do frete.");
+    }
+
+    const routeChanged = currentFreight.origin !== f.origin || currentFreight.destination !== f.destination;
+    let nextEstimatedDistance = currentFreight.estimated_distance || 0;
+
+    if (routeChanged) {
+      const { getRouteDistanceDiagnosticWithCache } = await import("@/lib/routeApi");
+      const distanceDiagnostic = await getRouteDistanceDiagnosticWithCache({
+        origin: f.origin,
+        destination: f.destination,
+        userId: user.id,
+      });
+
+      nextEstimatedDistance = distanceDiagnostic.distanceKm && distanceDiagnostic.distanceKm > 0
+        ? distanceDiagnostic.distanceKm
+        : 0;
+
+      if (distanceDiagnostic.distanceKm === null) {
+        const description = buildRouteFailureDetails({
+          reason: distanceDiagnostic.reason,
+          originQueryUsed: distanceDiagnostic.originQueryUsed,
+          destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
+        });
+
+        toast({
+          title: "Falha ao calcular rota estimada",
+          description,
+          variant: "destructive",
+        });
+
+        console.error("Falha no diagnóstico de rota ao editar frete", {
+          tripId,
+          freightId,
+          origin: f.origin,
+          destination: f.destination,
+          reason: distanceDiagnostic.reason,
+          originQueryUsed: distanceDiagnostic.originQueryUsed,
+          destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
+        });
+      }
+    }
+
     await supabase.from("freights").update({
       origin: f.origin, destination: f.destination, km_initial: f.kmInitial,
       gross_value: f.grossValue, commission_percent: f.commissionPercent, commission_value: commissionValue,
+      estimated_distance: nextEstimatedDistance,
     }).eq("id", freightId);
     await recalculateTripEstimatedDistance(tripId);
     if (vehicleId) {

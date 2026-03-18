@@ -26,9 +26,9 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
   const remainingKm = freightEstimated > 0 ? Math.max(0, freightEstimated - cappedProgressKm) : 0;
   const progressPercent = freightEstimated > 0 ? Math.min(100, (cappedProgressKm / freightEstimated) * 100) : 0;
 
-  const eta = remainingKm > 0 ? calculateEta(remainingKm, AVG_SPEED_KMH) : null;
+  const arrivalEstimate = remainingKm > 0 ? calculateEta(remainingKm, AVG_SPEED_KMH) : null;
 
-  const shouldShowEta = !!currentFreight && freightEstimated > 0;
+  const shouldShowArrivalEstimate = !!currentFreight && freightEstimated > 0;
   const hasPlannedFreight = trip.freights.some((freight) => freight.status === "planned");
   const hasAnyFreight = trip.freights.length > 0;
 
@@ -63,17 +63,17 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
       {currentFreight ? (
         <div className="space-y-2.5">
           <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Frete em andamento</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Frete atual</p>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-tight">
               <MapPin className="w-3.5 h-3.5 text-primary" /> {currentFreight.origin} → {currentFreight.destination}
             </p>
           </div>
 
-          {shouldShowEta ? (
+          {shouldShowArrivalEstimate ? (
             <>
               <Progress value={progressPercent} className="h-2.5 bg-secondary" />
               <div className="space-y-1.5 rounded-lg bg-secondary/40 px-2.5 py-2 border border-border/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Previsão do frete atual</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Previsão de chegada</p>
                 <div className="flex flex-wrap items-center gap-1.5 text-xs text-foreground">
                   <span className="inline-flex items-center gap-1 font-semibold font-mono">
                     <Route className="w-3 h-3 text-muted-foreground" />
@@ -82,12 +82,12 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
                   <span className="text-muted-foreground">•</span>
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="w-3 h-3 text-muted-foreground" />
-                    {eta?.durationLabel ?? "Chegando"}
+                    {arrivalEstimate?.durationLabel ?? "Chegando"}
                   </span>
                   <span className="text-muted-foreground">•</span>
                   <span className="inline-flex items-center gap-1">
                     <MapPin className="w-3 h-3 text-muted-foreground" />
-                    {eta?.arrivalLabel ?? "Agora"}
+                    {arrivalEstimate?.arrivalLabel ?? "Agora"}
                   </span>
                 </div>
               </div>
@@ -109,7 +109,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
               ? "Tem frete aguardando início. Toque em Iniciar no próximo trecho para voltar a acompanhar progresso e chegada."
               : hasAnyFreight
                 ? "Os fretes lançados já ficaram para trás. Se a operação acabou, a viagem pode ser finalizada quando você quiser."
-                : "Ainda não tem frete lançado nesta viagem. Cadastre o primeiro trecho para liberar progresso e ETA no hero."}
+                : "Ainda não tem frete lançado nesta viagem. Cadastre o primeiro trecho para liberar progresso e previsão de chegada no painel da viagem."}
           </p>
         </div>
       )}

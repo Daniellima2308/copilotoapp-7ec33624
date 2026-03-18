@@ -37,6 +37,7 @@ import {
   Sparkles,
   Wallet,
   Loader2,
+  MoreVertical,
 } from "lucide-react";
 import { exportSingleTripPdf } from "@/lib/exportPdf";
 import { FinishTripModal } from "@/components/FinishTripModal";
@@ -46,6 +47,7 @@ import { FuelTab } from "@/components/trip/FuelTab";
 import { ExpenseTab } from "@/components/trip/ExpenseTab";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Trip } from "@/types";
 import { getCurrentFreight } from "@/lib/freightStatus";
 
@@ -83,33 +85,52 @@ const STATUS_META: Record<InfoState, { label: string; hint: string; icon: typeof
   },
 };
 
-function computeSmartBanner(trip: Trip, hasRealKm: boolean, hasEstimatedKm: boolean) {
-  const hasCoreData = trip.freights.length > 0 || trip.fuelings.length > 0 || trip.expenses.length > 0;
+function computeSmartBanner(trip: Trip, hasRealKm: boolean, hasEstimatedKm: boolean, activeFreight: ReturnType<typeof getCurrentFreight>) {
+  const hasFreight = trip.freights.length > 0;
+  const hasFueling = trip.fuelings.length > 0;
+  const hasExpenses = trip.expenses.length > 0;
+  const hasCoreData = hasFreight || hasFueling || hasExpenses;
+  const hasPlannedFreight = trip.freights.some((freight) => freight.status === "planned");
+  const canFinishTrip = hasFreight && !activeFreight;
 
   if (!hasCoreData) {
     return {
-      title: "Faltam dados da viagem",
-      message: "Cadastre frete, gastos ou KM para o Copiloto mostrar contas mais completas.",
+      title: "Comece pelos lançamentos principais",
+      message: "Cadastre um frete, abastecimento ou despesa para a viagem começar a fazer sentido nas contas.",
     };
   }
 
-  if (hasRealKm) {
+  if (activeFreight && hasRealKm) {
     return {
-      title: "Viagem em andamento",
-      message: "Os valores por KM abaixo já estão usando o trecho rodado de verdade.",
+      title: "Viagem rodando com dados reais",
+      message: "O trecho atual já usa KM lançado, então custo e lucro por KM ficaram mais fiéis ao que está acontecendo agora.",
     };
   }
 
-  if (hasEstimatedKm) {
+  if (activeFreight && hasEstimatedKm) {
     return {
-      title: "Viagem em andamento",
-      message: "Alguns valores abaixo ainda são previsão, porque o app está usando a rota cadastrada.",
+      title: "Viagem rodando com parte em previsão",
+      message: "O Copiloto está usando a rota cadastrada até entrar mais KM real. Isso ajuda a acompanhar sem travar a operação.",
+    };
+  }
+
+  if (hasPlannedFreight) {
+    return {
+      title: "Tem frete aguardando início",
+      message: "Quando você iniciar o próximo trecho, o hero volta a mostrar progresso e previsão de chegada automaticamente.",
+    };
+  }
+
+  if (canFinishTrip) {
+    return {
+      title: "Viagem pronta para fechar",
+      message: "Os lançamentos principais já foram feitos. Se estiver tudo certo, você pode finalizar quando decidir encerrar no painel.",
     };
   }
 
   return {
-    title: "Faltam dados da viagem",
-    message: "Cadastre frete, gastos ou KM para o Copiloto mostrar contas mais completas.",
+    title: "Faltam alguns lançamentos para enriquecer a leitura",
+    message: "A viagem já começou, mas abastecimentos, despesas ou KM real deixam os números bem mais úteis para decidir o próximo passo.",
   };
 }
 
@@ -168,8 +189,10 @@ const TripDetailPage = () => {
   const profitKmLabel = isOpen ? "Lucro/KM até agora" : hasRealKm ? "Lucro/KM real" : hasEstimatedKm ? "Lucro/KM previsto" : "Lucro/KM";
   const costKmLabel = isOpen ? "Custo/KM até agora" : hasRealKm ? "Custo/KM real" : hasEstimatedKm ? "Custo/KM previsto" : "Custo/KM";
 
-  const smartBanner = computeSmartBanner(trip, hasRealKm, hasEstimatedKm);
   const activeFreight = getCurrentFreight(trip);
+  const smartBanner = computeSmartBanner(trip, hasRealKm, hasEstimatedKm, activeFreight);
+  const tripLabel = vehicle ? `${vehicle.brand} ${vehicle.model}` : "Viagem em aberto";
+  const tripMeta = [vehicle?.plate, isOpen ? "Viagem aberta" : "Viagem finalizada", trip.createdAt ? new Date(trip.createdAt).toLocaleDateString("pt-BR") : null].filter(Boolean).join(" • ");
 
   const handleFinish = async (km: number) => {
     try {
@@ -186,47 +209,76 @@ const TripDetailPage = () => {
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="px-4 pt-6 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/")} className="p-2 rounded-lg bg-secondary hover:bg-accent transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h1 className="text-lg font-bold whitespace-nowrap">Detalhes</h1>
-          </div>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => exportSingleTripPdf(trip, data.vehicles)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-secondary hover:bg-accent transition-colors text-xs font-semibold min-h-[44px]"
-            >
-              <FileDown className="w-4 h-4 text-profit" /> <span className="text-profit">PDF</span>
-            </button>
-            {isOpen && (
-              <>
-                <button
-                  onClick={() => setShowFinishModal(true)}
-                  disabled={isFinishingTrip || isDeletingTrip}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors text-xs font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isFinishingTrip ? <Loader2 className="w-4 h-4 text-profit animate-spin" /> : <CheckCircle className="w-4 h-4 text-profit" />} <span className="text-profit">Finalizar</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!confirm("Excluir viagem?")) return;
-                    try {
-                      setIsDeletingTrip(true);
-                      await deleteTrip(trip.id);
-                      navigate("/");
-                    } finally {
-                      setIsDeletingTrip(false);
-                    }
-                  }}
-                  disabled={isFinishingTrip || isDeletingTrip}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors text-xs font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isDeletingTrip ? <Loader2 className="w-4 h-4 text-expense animate-spin" /> : <Trash2 className="w-4 h-4 text-expense" />} <span className="text-expense">Excluir</span>
-                </button>
-              </>
-            )}
+        <div className="gradient-card rounded-2xl border border-border/70 p-3.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <button onClick={() => navigate("/")} className="mt-0.5 rounded-xl bg-secondary p-2 transition-colors hover:bg-accent min-h-[44px] min-w-[44px]">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0 space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Viagem</p>
+                <h1 className="truncate text-base font-bold text-foreground">{tripLabel}</h1>
+                <p className="text-xs leading-relaxed text-muted-foreground">{tripMeta}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => exportSingleTripPdf(trip, data.vehicles)}
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-border/70 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <FileDown className="h-4 w-4" /> PDF
+              </button>
+
+              {isOpen && (
+                <>
+                  <button
+                    onClick={() => setShowFinishModal(true)}
+                    disabled={isFinishingTrip || isDeletingTrip}
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-profit px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isFinishingTrip ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    Finalizar viagem
+                  </button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Mais ações da viagem"
+                        disabled={isFinishingTrip || isDeletingTrip}
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-border/70 bg-background text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                      <DropdownMenuItem onClick={() => exportSingleTripPdf(trip, data.vehicles)} className="gap-2">
+                        <FileDown className="h-4 w-4 text-muted-foreground" />
+                        Exportar PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          if (!confirm("Excluir viagem?")) return;
+                          try {
+                            setIsDeletingTrip(true);
+                            await deleteTrip(trip.id);
+                            navigate("/");
+                          } finally {
+                            setIsDeletingTrip(false);
+                          }
+                        }}
+                        className="gap-2 text-expense focus:text-expense"
+                      >
+                        {isDeletingTrip ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Excluir viagem
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>

@@ -168,8 +168,33 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
     }
   };
 
+  const hasPlannedFreight = trip.freights.some((freight) => freight.status === "planned");
+  const hasInProgressFreight = trip.freights.some((freight) => freight.status === "in_progress");
+
   return (
     <div className="space-y-2">
+      {trip.freights.length === 0 && (
+        <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
+          <p className="text-sm font-semibold text-foreground">Ainda não tem frete nesta viagem.</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Cadastre o primeiro trecho para começar a acompanhar bruto, comissão, KM e progresso no hero.
+          </p>
+        </div>
+      )}
+
+      {trip.freights.length > 0 && !hasInProgressFreight && (
+        <div className="rounded-xl border border-border/70 bg-secondary/35 p-3">
+          <p className="text-xs font-semibold text-foreground">
+            {hasPlannedFreight ? "Tem frete aguardando início." : "Nenhum frete está rodando agora."}
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            {hasPlannedFreight
+              ? "Toque em Iniciar no próximo trecho para voltar a acompanhar o andamento da viagem em tempo real."
+              : "Se os trechos já acabaram, você pode revisar os lançamentos e finalizar a viagem quando achar melhor."}
+          </p>
+        </div>
+      )}
+
       {trip.freights.map((f: Freight) => (
         <div key={f.id} className="gradient-card rounded-xl p-3 space-y-2">
           <div className="flex items-start justify-between gap-3">

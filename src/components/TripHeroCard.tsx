@@ -30,6 +30,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
 
   const shouldShowEta = !!currentFreight && freightEstimated > 0;
   const hasPlannedFreight = trip.freights.some((freight) => freight.status === "planned");
+  const hasAnyFreight = trip.freights.length > 0;
 
   return (
     <div className="gradient-card rounded-xl p-4 space-y-3">
@@ -92,16 +93,23 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
               </div>
             </>
           ) : (
-            <p className="text-xs text-warning">Não foi possível calcular a rota estimada deste frete. Consulte o aviso de diagnóstico para ver o motivo.</p>
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5">
+              <p className="text-xs font-semibold text-foreground">Sem rota estimada por enquanto.</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                Dá para seguir lançando a viagem normalmente. Revise origem e destino deste frete para tentar liberar a previsão.
+              </p>
+            </div>
           )}
         </div>
       ) : (
         <div className="rounded-lg bg-secondary/50 p-3">
-          <p className="text-xs font-semibold text-foreground">Nenhum frete em andamento neste momento.</p>
-          <p className="text-[11px] text-muted-foreground mt-1">
+          <p className="text-xs font-semibold text-foreground">Nenhum frete em andamento agora.</p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             {hasPlannedFreight
-              ? "Próximo frete aguardando início. Toque em Iniciar no trecho planejado."
-              : "Inicie um frete na lista abaixo para liberar ETA no hero."}
+              ? "Tem frete aguardando início. Toque em Iniciar no próximo trecho para voltar a acompanhar progresso e chegada."
+              : hasAnyFreight
+                ? "Os fretes lançados já ficaram para trás. Se a operação acabou, a viagem pode ser finalizada quando você quiser."
+                : "Ainda não tem frete lançado nesta viagem. Cadastre o primeiro trecho para liberar progresso e ETA no hero."}
           </p>
         </div>
       )}

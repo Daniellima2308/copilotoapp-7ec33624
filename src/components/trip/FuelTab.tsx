@@ -111,6 +111,15 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
 
   return (
     <div className="space-y-2">
+      {trip.fuelings.length === 0 && (
+        <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
+          <p className="text-sm font-semibold text-foreground">Nenhum abastecimento lançado ainda.</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Quando entrar o primeiro abastecimento, o Copiloto começa a montar média, custo e leitura mais fiel da viagem.
+          </p>
+        </div>
+      )}
+
       {trip.fuelings.map((f: Fueling) => {
         const isFullTank = f.fullTank ?? true;
         const isProrated = f.allocatedValue != null && f.originalTotalValue != null;

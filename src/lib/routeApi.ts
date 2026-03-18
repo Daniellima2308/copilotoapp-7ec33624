@@ -25,6 +25,7 @@ interface RouteFunctionResponse {
   originCoords: Coordinates | null;
   destCoords: Coordinates | null;
   reason: string | null;
+  reasonCode?: string | null;
   originQueryUsed?: string;
   destinationQueryUsed?: string;
 }
@@ -39,6 +40,24 @@ interface RouteResolution {
 const ROUTE_PROVIDER = "tomtom";
 const CACHE_HIT_WRITE_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const COUNTRY_TOKENS = new Set(["brazil", "brasil", "br"]);
+
+function mapRouteInvokeErrorToUserReason(errorMessage: string): string {
+  const normalized = errorMessage.toLowerCase();
+
+  if (normalized.includes("tomtom_api_key") || normalized.includes("api key")) {
+    return "Serviço de rota indisponível no momento. Você pode seguir lançando a viagem normalmente e tentar novamente mais tarde.";
+  }
+
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("network") ||
+    normalized.includes("fetch")
+  ) {
+    return "Não deu para liberar a previsão da rota agora. Confira sua conexão e tente novamente em instantes.";
+  }
+
+  return "Não deu para liberar a previsão da rota agora. Você pode seguir lançando a viagem normalmente e tentar novamente depois.";
+}
 
 function logRouteDebug(event: string, details: Record<string, unknown>) {
   console.info(`[routeApi] ${event}`, details);
@@ -79,14 +98,24 @@ function shouldUpdateCacheHitMetadata(lastUsedAt: string | null): boolean {
   return Date.now() - lastUsedMs >= CACHE_HIT_WRITE_MIN_INTERVAL_MS;
 }
 
-async function resolveRoute(origin: string, destination: string): Promise<RouteResolution> {
+async function resolveRoute(
+  origin: string,
+  destination: string,
+): Promise<RouteResolution> {
   try {
-    logRouteDebug("provider_request", { origin, destination, provider: ROUTE_PROVIDER });
-
-    const response = await invokeEdgeFunction<RouteFunctionResponse>("calculate-route", {
+    logRouteDebug("provider_request", {
       origin,
       destination,
+      provider: ROUTE_PROVIDER,
     });
+
+    const response = await invokeEdgeFunction<RouteFunctionResponse>(
+      "calculate-route",
+      {
+        origin,
+        destination,
+      },
+    );
 
     if (
       typeof response?.distanceKm === "number" &&
@@ -126,11 +155,12 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
       destinationQueryUsed: response?.destinationQueryUsed,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : JSON.stringify(error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
 
     console.error("[routeApi] Falha ao chamar calculate-route", {
       origin,
@@ -140,17 +170,25 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
 
     return {
       result: null,
-      reason: `Erro ao chamar função de rota: ${errorMessage || "erro desconhecido"}.`,
+      reason: mapRouteInvokeErrorToUserReason(
+        errorMessage || "erro desconhecido",
+      ),
     };
   }
 }
 
-export async function getRouteDistance(origin: string, destination: string): Promise<number | null> {
+export async function getRouteDistance(
+  origin: string,
+  destination: string,
+): Promise<number | null> {
   const resolved = await resolveRoute(origin, destination);
   return resolved.result ? resolved.result.distanceKm : null;
 }
 
-export async function getRouteDistanceDiagnostic(origin: string, destination: string): Promise<RouteDistanceDiagnostic> {
+export async function getRouteDistanceDiagnostic(
+  origin: string,
+  destination: string,
+): Promise<RouteDistanceDiagnostic> {
   const resolved = await resolveRoute(origin, destination);
   return {
     distanceKm: resolved.result?.distanceKm ?? null,
@@ -164,13 +202,21 @@ export async function getRouteDistanceDiagnostic(origin: string, destination: st
 // O cache de rota é permanente por enquanto para privilegiar economia de chamadas e consistência offline.
 // `forceRefresh` existe para revalidar manualmente uma rota específica sem reabrir a estratégia global.
 // A telemetria de hit é limitada por intervalo para evitar writes excessivos a cada consulta repetida.
-export async function getRouteDistanceDiagnosticWithCache(
-  params: { origin: string; destination: string; userId: string; forceRefresh?: boolean },
-): Promise<RouteDistanceDiagnostic> {
+export async function getRouteDistanceDiagnosticWithCache(params: {
+  origin: string;
+  destination: string;
+  userId: string;
+  forceRefresh?: boolean;
+}): Promise<RouteDistanceDiagnostic> {
   const originNormalized = normalizeRouteLabel(params.origin);
   const destinationNormalized = normalizeRouteLabel(params.destination);
 
-  let cachedRoute: { id: string; distance_km: number | null; hit_count: number | null; last_used_at: string | null } | null = null;
+  let cachedRoute: {
+    id: string;
+    distance_km: number | null;
+    hit_count: number | null;
+    last_used_at: string | null;
+  } | null = null;
 
   if (!params.forceRefresh) {
     const { data, error: cacheLookupError } = await supabase
@@ -194,7 +240,11 @@ export async function getRouteDistanceDiagnosticWithCache(
     }
   }
 
-  if (cachedRoute && typeof cachedRoute.distance_km === "number" && cachedRoute.distance_km > 0) {
+  if (
+    cachedRoute &&
+    typeof cachedRoute.distance_km === "number" &&
+    cachedRoute.distance_km > 0
+  ) {
     logRouteDebug("cache_hit", {
       origin: params.origin,
       destination: params.destination,
@@ -214,10 +264,13 @@ export async function getRouteDistanceDiagnosticWithCache(
         .eq("id", cachedRoute.id);
 
       if (cacheHitError) {
-        console.error("[routeApi] Falha ao atualizar hit_count do route_cache", {
-          routeCacheId: cachedRoute.id,
-          error: cacheHitError,
-        });
+        console.error(
+          "[routeApi] Falha ao atualizar hit_count do route_cache",
+          {
+            routeCacheId: cachedRoute.id,
+            error: cacheHitError,
+          },
+        );
       }
     }
 
@@ -240,26 +293,24 @@ export async function getRouteDistanceDiagnosticWithCache(
 
   if (resolved.result) {
     const nowIso = new Date().toISOString();
-    const { error: upsertError } = await supabase
-      .from("route_cache")
-      .upsert(
-        {
-          user_id: params.userId,
-          origin_label: params.origin,
-          destination_label: params.destination,
-          origin_normalized: originNormalized,
-          destination_normalized: destinationNormalized,
-          distance_km: resolved.result.distanceKm,
-          origin_lat: resolved.result.originCoords.lat,
-          origin_lon: resolved.result.originCoords.lon,
-          destination_lat: resolved.result.destCoords.lat,
-          destination_lon: resolved.result.destCoords.lon,
-          provider: ROUTE_PROVIDER,
-          last_verified_at: nowIso,
-          last_used_at: nowIso,
-        },
-        { onConflict: "user_id,origin_normalized,destination_normalized" },
-      );
+    const { error: upsertError } = await supabase.from("route_cache").upsert(
+      {
+        user_id: params.userId,
+        origin_label: params.origin,
+        destination_label: params.destination,
+        origin_normalized: originNormalized,
+        destination_normalized: destinationNormalized,
+        distance_km: resolved.result.distanceKm,
+        origin_lat: resolved.result.originCoords.lat,
+        origin_lon: resolved.result.originCoords.lon,
+        destination_lat: resolved.result.destCoords.lat,
+        destination_lon: resolved.result.destCoords.lon,
+        provider: ROUTE_PROVIDER,
+        last_verified_at: nowIso,
+        last_used_at: nowIso,
+      },
+      { onConflict: "user_id,origin_normalized,destination_normalized" },
+    );
 
     if (upsertError) {
       console.error("[routeApi] Falha ao persistir route_cache", {
@@ -309,7 +360,10 @@ export async function refreshRouteDistanceCache(params: {
   });
 }
 
-export async function getRouteInfo(origin: string, destination: string): Promise<RouteResult | null> {
+export async function getRouteInfo(
+  origin: string,
+  destination: string,
+): Promise<RouteResult | null> {
   const resolved = await resolveRoute(origin, destination);
   return resolved.result;
 }

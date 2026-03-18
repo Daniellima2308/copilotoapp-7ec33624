@@ -10,8 +10,23 @@ vi.mock("@/components/ui/use-toast", () => ({
 }));
 
 vi.mock("@/components/CityAutocomplete", () => ({
-  CityAutocomplete: ({ placeholder, value, onChange, className }: { placeholder: string; value: string; onChange: (v: string) => void; className?: string }) => (
-    <input className={className} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+  CityAutocomplete: ({
+    placeholder,
+    value,
+    onChange,
+    className,
+  }: {
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    className?: string;
+  }) => (
+    <input
+      className={className}
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
   ),
 }));
 
@@ -61,10 +76,18 @@ describe("FreightTab", () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("Origem"), { target: { value: "SP" } });
-    fireEvent.change(screen.getByPlaceholderText("Destino"), { target: { value: "RJ" } });
-    fireEvent.change(screen.getByPlaceholderText("KM Inicial"), { target: { value: "100" } });
-    fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("Origem"), {
+      target: { value: "SP" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Destino"), {
+      target: { value: "RJ" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("KM Inicial"), {
+      target: { value: "100" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), {
+      target: { value: "1000" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar frete" }));
 
@@ -90,10 +113,18 @@ describe("FreightTab", () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("Origem"), { target: { value: "SP" } });
-    fireEvent.change(screen.getByPlaceholderText("Destino"), { target: { value: "RJ" } });
-    fireEvent.change(screen.getByPlaceholderText("KM Inicial"), { target: { value: "100" } });
-    fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("Origem"), {
+      target: { value: "SP" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Destino"), {
+      target: { value: "RJ" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("KM Inicial"), {
+      target: { value: "100" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), {
+      target: { value: "1000" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Salvar frete" }));
 
@@ -107,10 +138,138 @@ describe("FreightTab", () => {
     expect(screen.getByPlaceholderText("Destino")).toHaveValue("RJ");
   });
 
+  it("força nova tentativa de previsão ao revisar rota sem alterar campos", async () => {
+    const updateFreight = vi
+      .fn()
+      .mockResolvedValue({ status: "route_refreshed" });
+
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            {
+              id: "f-1",
+              tripId: tripBase.id,
+              origin: "SP",
+              destination: "MG",
+              kmInitial: 100,
+              grossValue: 1000,
+              commissionPercent: 10,
+              commissionValue: 100,
+              status: "in_progress",
+              estimatedDistance: 0,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn()}
+        updateFreight={updateFreight}
+        deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn().mockResolvedValue({ promotedFreightId: null })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revisar rota" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e tentar previsão" }),
+    );
+
+    await waitFor(() => {
+      expect(updateFreight).toHaveBeenCalledWith(
+        "trip-1",
+        "f-1",
+        expect.objectContaining({ origin: "SP", destination: "MG" }),
+        { forceRouteRefresh: true, suppressSuccessToast: true },
+      );
+    });
+  });
+
+  it("mostra feedback único quando a rota continua sem previsão após revisão", async () => {
+    const updateFreight = vi.fn().mockResolvedValue({
+      status: "saved_without_route",
+      userMessage:
+        "Origem e destino foram confirmados, mas a previsão da rota ainda não foi liberada.",
+    });
+
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            {
+              id: "f-1",
+              tripId: tripBase.id,
+              origin: "SP",
+              destination: "MG",
+              kmInitial: 100,
+              grossValue: 1000,
+              commissionPercent: 10,
+              commissionValue: 100,
+              status: "in_progress",
+              estimatedDistance: 0,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn()}
+        updateFreight={updateFreight}
+        deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn().mockResolvedValue({ promotedFreightId: null })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revisar rota" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e tentar previsão" }),
+    );
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Previsão ainda em ajuste",
+        }),
+      );
+    });
+
+    expect(toastMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Rota revisada",
+      }),
+    );
+  });
+
   it("mostra Retirada no card para perfil driver_owner", () => {
     render(
       <FreightTab
-        trip={{ ...tripBase, freights: [{ id: "f-1", tripId: tripBase.id, origin: "SP", destination: "MG", kmInitial: 100, grossValue: 1000, commissionPercent: 10, commissionValue: 100, status: "in_progress", estimatedDistance: 450, createdAt: new Date().toISOString() }] }}
+        trip={{
+          ...tripBase,
+          freights: [
+            {
+              id: "f-1",
+              tripId: tripBase.id,
+              origin: "SP",
+              destination: "MG",
+              kmInitial: 100,
+              grossValue: 1000,
+              commissionPercent: 10,
+              commissionValue: 100,
+              status: "in_progress",
+              estimatedDistance: 450,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
@@ -125,11 +284,30 @@ describe("FreightTab", () => {
   });
 
   it("abre modal ao tocar em Concluir e permite só concluir", async () => {
-    const completeFreight = vi.fn().mockResolvedValue({ promotedFreightId: null });
+    const completeFreight = vi
+      .fn()
+      .mockResolvedValue({ promotedFreightId: null });
 
     render(
       <FreightTab
-        trip={{ ...tripBase, freights: [{ id: "f-1", tripId: tripBase.id, origin: "SP", destination: "MG", kmInitial: 100, grossValue: 1000, commissionPercent: 10, commissionValue: 100, status: "in_progress", estimatedDistance: 450, createdAt: new Date().toISOString() }] }}
+        trip={{
+          ...tripBase,
+          freights: [
+            {
+              id: "f-1",
+              tripId: tripBase.id,
+              origin: "SP",
+              destination: "MG",
+              kmInitial: 100,
+              grossValue: 1000,
+              commissionPercent: 10,
+              commissionValue: 100,
+              status: "in_progress",
+              estimatedDistance: 450,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
@@ -143,10 +321,16 @@ describe("FreightTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Concluir/i }));
     expect(screen.getByText("Concluir frete atual?")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Só concluir este frete" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Só concluir este frete" }),
+    );
 
     await waitFor(() => {
-      expect(completeFreight).toHaveBeenCalledWith("trip-1", "f-1", "complete_only");
+      expect(completeFreight).toHaveBeenCalledWith(
+        "trip-1",
+        "f-1",
+        "complete_only",
+      );
     });
   });
 });

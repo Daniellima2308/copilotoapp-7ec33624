@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
-  "Vary": "Origin",
+  Vary: "Origin",
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -27,7 +27,18 @@ interface Coordinates {
 interface GeocodeDiagnostic {
   coords: Coordinates | null;
   reason: string | null;
+  reasonCode?: string;
   queryUsed?: string;
+}
+
+interface RouteFunctionPayload {
+  distanceKm: number | null;
+  originCoords: Coordinates | null;
+  destCoords: Coordinates | null;
+  reason: string | null;
+  reasonCode?: string | null;
+  originQueryUsed?: string;
+  destinationQueryUsed?: string;
 }
 
 function normalizeLocation(value: string): string {
@@ -46,7 +57,10 @@ function normalizeLocation(value: string): string {
 
 function buildLocationCandidates(raw: string): string[] {
   const normalized = normalizeLocation(raw);
-  const [city = "", uf = ""] = normalized.split(",").map((part) => part.trim()).filter(Boolean);
+  const [city = "", uf = ""] = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
   const candidates = [
     normalized,
     city && uf ? `${city}, ${uf}` : "",
@@ -57,7 +71,10 @@ function buildLocationCandidates(raw: string): string[] {
   return [...new Set(candidates)];
 }
 
-async function geocodeLocation(cityName: string, apiKey: string): Promise<GeocodeDiagnostic> {
+async function geocodeLocation(
+  cityName: string,
+  apiKey: string,
+): Promise<GeocodeDiagnostic> {
   const candidates = buildLocationCandidates(cityName);
   let lastReason = "Localização não encontrada na geocodificação.";
 
@@ -70,14 +87,22 @@ async function geocodeLocation(cityName: string, apiKey: string): Promise<Geocod
       );
 
       if (!response.ok) {
-        lastReason = `Geocodificação falhou para "${query}" (HTTP ${response.status}).`;
+        console.error("[calculate-route] geocode_http_error", {
+          query,
+          status: response.status,
+        });
+        lastReason = "Origem ou destino não foram reconhecidos com clareza.";
         continue;
       }
 
       const data = await response.json();
       const position = data?.results?.[0]?.position;
 
-      if (position && typeof position.lat === "number" && typeof position.lon === "number") {
+      if (
+        position &&
+        typeof position.lat === "number" &&
+        typeof position.lon === "number"
+      ) {
         return {
           coords: { lat: position.lat, lon: position.lon },
           reason: null,
@@ -85,9 +110,10 @@ async function geocodeLocation(cityName: string, apiKey: string): Promise<Geocod
         };
       }
 
-      lastReason = `Sem resultado para "${query}".`;
+      lastReason = "Origem ou destino não foram reconhecidos com clareza.";
     } catch (error) {
-      lastReason = `Erro de rede na geocodificação de "${query}": ${error instanceof Error ? error.message : "erro desconhecido"}.`;
+      console.error("[calculate-route] geocode_fetch_error", { query, error });
+      lastReason = "Não deu para consultar a rota agora.";
     }
   }
 
@@ -100,50 +126,95 @@ serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({
-      distanceKm: null,
-      originCoords: null,
-      destCoords: null,
-      reason: `Método não permitido: ${req.method}. Use POST.`,
-    }, 405);
+    return jsonResponse(
+      {
+        distanceKm: null,
+        originCoords: null,
+        destCoords: null,
+        reason: "Método não permitido para cálculo de rota.",
+        reasonCode: "method_not_allowed",
+      },
+      405,
+    );
+  }
+
+  const TOMTOM_API_KEY = Deno.env.get("TOMTOM_API_KEY");
+  if (!TOMTOM_API_KEY) {
+    console.error("[calculate-route] missing_tomtom_api_key");
+    return jsonResponse(
+      {
+        distanceKm: null,
+        originCoords: null,
+        destCoords: null,
+        reason: "Serviço de rota indisponível no momento.",
+        reasonCode: "missing_api_key",
+      } satisfies RouteFunctionPayload,
+      200,
+    );
+  }
+
+  let payload: { origin?: unknown; destination?: unknown } = {};
+
+  try {
+    payload = await req.json();
+  } catch (error) {
+    console.error("[calculate-route] invalid_json_body", { error });
+    return jsonResponse(
+      {
+        distanceKm: null,
+        originCoords: null,
+        destCoords: null,
+        reason: "Origem e destino não foram enviados corretamente.",
+        reasonCode: "invalid_json_body",
+      } satisfies RouteFunctionPayload,
+      200,
+    );
+  }
+
+  const origin =
+    typeof payload.origin === "string" ? payload.origin.trim() : "";
+  const destination =
+    typeof payload.destination === "string" ? payload.destination.trim() : "";
+
+  if (!origin || !destination) {
+    console.error("[calculate-route] invalid_route_payload", { payload });
+    return jsonResponse(
+      {
+        distanceKm: null,
+        originCoords: null,
+        destCoords: null,
+        reason:
+          "Origem e destino precisam ser informados para calcular a rota.",
+        reasonCode: "invalid_payload",
+      } satisfies RouteFunctionPayload,
+      200,
+    );
   }
 
   try {
-    const TOMTOM_API_KEY = Deno.env.get("TOMTOM_API_KEY");
-    if (!TOMTOM_API_KEY) {
-      return jsonResponse({
-          distanceKm: null,
-          originCoords: null,
-          destCoords: null,
-          reason: "TOMTOM_API_KEY is not configured",
-        }, 500);
-    }
-
-    const { origin, destination } = await req.json();
-
-    if (!origin || !destination || typeof origin !== "string" || typeof destination !== "string") {
-      return jsonResponse({
-          distanceKm: null,
-          originCoords: null,
-          destCoords: null,
-          reason: "Missing origin or destination",
-        }, 400);
-    }
-
-    // Sequential geocoding with delay to respect TomTom 5 QPS limit
     const originGeo = await geocodeLocation(origin, TOMTOM_API_KEY);
     await new Promise((r) => setTimeout(r, 250));
     const destinationGeo = await geocodeLocation(destination, TOMTOM_API_KEY);
 
     if (!originGeo.coords || !destinationGeo.coords) {
-      return jsonResponse({
+      return jsonResponse(
+        {
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
-          reason: originGeo.reason || destinationGeo.reason || "Não foi possível geocodificar origem/destino.",
+          reason:
+            originGeo.reason ||
+            destinationGeo.reason ||
+            "Origem ou destino não foram reconhecidos com clareza.",
+          reasonCode:
+            originGeo.reasonCode ||
+            destinationGeo.reasonCode ||
+            "geocode_not_found",
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }, 200);
+        } satisfies RouteFunctionPayload,
+        200,
+      );
     }
 
     const routeResponse = await fetch(
@@ -151,45 +222,80 @@ serve(async (req) => {
     );
 
     if (!routeResponse.ok) {
-      return jsonResponse({
+      console.error("[calculate-route] routing_http_error", {
+        status: routeResponse.status,
+        origin,
+        destination,
+        originQueryUsed: originGeo.queryUsed,
+        destinationQueryUsed: destinationGeo.queryUsed,
+      });
+
+      return jsonResponse(
+        {
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
-          reason: `Roteamento falhou (HTTP ${routeResponse.status}).`,
+          reason: "Não deu para calcular a rota deste trecho agora.",
+          reasonCode: "routing_http_error",
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }, 200);
+        } satisfies RouteFunctionPayload,
+        200,
+      );
     }
 
     const routeData = await routeResponse.json();
     const routeLengthMeters = routeData?.routes?.[0]?.summary?.lengthInMeters;
 
     if (typeof routeLengthMeters !== "number") {
-      return jsonResponse({
+      console.error("[calculate-route] routing_without_valid_route", {
+        origin,
+        destination,
+        routeData,
+      });
+
+      return jsonResponse(
+        {
           distanceKm: null,
           originCoords: originGeo.coords,
           destCoords: destinationGeo.coords,
-          reason: `Roteamento sem rota válida (${routeData?.error?.description || "sem rota"}).`,
+          reason: "Ainda não conseguimos estimar a distância deste trecho.",
+          reasonCode: "routing_without_valid_route",
           originQueryUsed: originGeo.queryUsed,
           destinationQueryUsed: destinationGeo.queryUsed,
-        }, 200);
+        } satisfies RouteFunctionPayload,
+        200,
+      );
     }
 
-    return jsonResponse({
+    return jsonResponse(
+      {
         distanceKm: Math.round(routeLengthMeters / 1000),
         originCoords: originGeo.coords,
         destCoords: destinationGeo.coords,
         reason: null,
+        reasonCode: null,
         originQueryUsed: originGeo.queryUsed,
         destinationQueryUsed: destinationGeo.queryUsed,
-      }, 200);
+      } satisfies RouteFunctionPayload,
+      200,
+    );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse({
+    console.error("[calculate-route] unexpected_error", {
+      origin,
+      destination,
+      error,
+    });
+
+    return jsonResponse(
+      {
         distanceKm: null,
         originCoords: null,
         destCoords: null,
-        reason: `Erro inesperado na função de rota: ${errorMessage}`,
-      }, 500);
+        reason: "Não deu para calcular a rota agora.",
+        reasonCode: "unexpected_error",
+      } satisfies RouteFunctionPayload,
+      200,
+    );
   }
 });

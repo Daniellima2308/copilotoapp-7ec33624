@@ -11,8 +11,10 @@ function getEdgeErrorMessage(error: unknown): string {
     const maybeMessage = (error as { message?: unknown }).message;
     const maybeError = (error as { error?: unknown }).error;
 
-    if (typeof maybeMessage === "string" && maybeMessage.length > 0) return maybeMessage;
-    if (typeof maybeError === "string" && maybeError.length > 0) return maybeError;
+    if (typeof maybeMessage === "string" && maybeMessage.length > 0)
+      return maybeMessage;
+    if (typeof maybeError === "string" && maybeError.length > 0)
+      return maybeError;
   }
 
   return JSON.stringify(error);
@@ -27,7 +29,9 @@ export async function invokeEdgeFunction<T = unknown>(
   });
 
   if (error) {
-    throw new Error(`Edge function error: ${getEdgeErrorMessage(error)}`);
+    throw new Error(
+      `Falha ao acessar ${functionName}: ${getEdgeErrorMessage(error)}`,
+    );
   }
 
   return data as T;

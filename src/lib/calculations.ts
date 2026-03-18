@@ -1,7 +1,11 @@
 import { Freight, Trip } from "@/types";
 
-function getOperationalFreights(trip: Trip): Freight[] {
+export function getOperationalFreights(trip: Trip): Freight[] {
   return trip.freights.filter((freight) => freight.status === "in_progress" || freight.status === "completed");
+}
+
+export function getPlannedFreights(trip: Trip): Freight[] {
+  return trip.freights.filter((freight) => freight.status === "planned");
 }
 
 export function getTripGrossRevenue(trip: Trip): number {
@@ -37,25 +41,37 @@ export function getTripNetRevenueToDate(trip: Trip): number {
   return getTripGrossRevenueToDate(trip) - getTripTotalCommissionsToDate(trip) - getTripTotalExpenses(trip) - getTripTotalPersonalExpenses(trip);
 }
 
-export function getTripTotalKm(trip: Trip): number {
-  const checkpoints = [
-    ...trip.fuelings.map((f) => f.kmCurrent),
-    ...trip.freights.map((f) => f.kmInitial),
-  ].filter((km) => km > 0);
+function getKmFromCheckpoints(checkpoints: number[]): number {
+  const validCheckpoints = checkpoints.filter((km) => km > 0);
+  if (validCheckpoints.length < 2) return 0;
 
-  if (checkpoints.length < 2) return 0;
-
-  const startKm = Math.min(...checkpoints);
-  const endKm = Math.max(...checkpoints);
+  const startKm = Math.min(...validCheckpoints);
+  const endKm = Math.max(...validCheckpoints);
   const total = endKm - startKm;
   return total > 0 ? total : 0;
 }
 
+export function getTripActualKmToDate(trip: Trip): number {
+  const checkpoints = [
+    ...trip.fuelings.map((f) => f.kmCurrent),
+    ...getOperationalFreights(trip).map((f) => f.kmInitial),
+  ];
+
+  return getKmFromCheckpoints(checkpoints);
+}
+
+export function getTripTotalKm(trip: Trip): number {
+  return getTripActualKmToDate(trip);
+}
+
+export function getTripActualKmTotal(trip: Trip): number {
+  return getTripActualKmToDate(trip);
+}
 
 export function getTripLatestCheckpointKm(trip: Trip): number {
   const checkpoints = [
     ...trip.fuelings.map((f) => f.kmCurrent),
-    ...trip.freights.map((f) => f.kmInitial),
+    ...getOperationalFreights(trip).map((f) => f.kmInitial),
   ].filter((km) => km > 0);
 
   if (checkpoints.length === 0) return 0;
@@ -70,35 +86,75 @@ export function getTripAverageConsumption(trip: Trip): number {
   return Math.round((avgSum / fullTankFuelings.length) * 100) / 100;
 }
 
+export function getTripEstimatedKmToDate(trip: Trip): number {
+  return getOperationalFreights(trip).reduce(
+    (sum, freight) => sum + (freight.estimatedDistance > 0 ? freight.estimatedDistance : 0),
+    0,
+  );
+}
+
+export function getTripKmBasisToDate(trip: Trip): { km: number; source: "actual" | "estimated" | "none" } {
+  const actual = getTripActualKmToDate(trip);
+  if (actual > 0) return { km: actual, source: "actual" };
+
+  const estimated = getTripEstimatedKmToDate(trip);
+  if (estimated > 0) return { km: estimated, source: "estimated" };
+
+  return { km: 0, source: "none" };
+}
+
+export function getTripEstimatedKmTotal(trip: Trip): number {
+  const freightEstimatedTotal = trip.freights.reduce(
+    (sum, freight) => sum + (freight.estimatedDistance > 0 ? freight.estimatedDistance : 0),
+    0,
+  );
+
+  if (trip.estimatedDistance > 0) {
+    return trip.estimatedDistance;
+  }
+
+  return freightEstimatedTotal;
+}
+
+export function getTripKmBasisTotal(trip: Trip): { km: number; source: "actual" | "estimated" | "none" } {
+  const actual = getTripActualKmTotal(trip);
+  if (trip.status === "finished" && actual > 0) return { km: actual, source: "actual" };
+
+  const estimated = getTripEstimatedKmTotal(trip);
+  if (estimated > 0) return { km: estimated, source: "estimated" };
+
+  if (actual > 0) return { km: actual, source: "actual" };
+
+  return { km: 0, source: "none" };
+}
+
 export function getEffectiveKm(trip: Trip): { km: number; isEstimate: boolean } {
-  const actual = getTripTotalKm(trip);
-  if (actual > 0) return { km: actual, isEstimate: false };
-  if (trip.estimatedDistance > 0) return { km: trip.estimatedDistance, isEstimate: true };
-  return { km: 0, isEstimate: false };
+  const basis = trip.status === "open" ? getTripKmBasisToDate(trip) : getTripKmBasisTotal(trip);
+  return { km: basis.km, isEstimate: basis.source === "estimated" };
 }
 
 export function getTripCostPerKm(trip: Trip): number {
-  const { km } = getEffectiveKm(trip);
+  const { km } = getTripKmBasisTotal(trip);
   if (km === 0) return 0;
   const totalCost = getTripTotalExpenses(trip) + getTripTotalCommissions(trip);
   return Math.round((totalCost / km) * 100) / 100;
 }
 
 export function getTripCostPerKmToDate(trip: Trip): number {
-  const { km } = getEffectiveKm(trip);
+  const { km } = getTripKmBasisToDate(trip);
   if (km === 0) return 0;
   const totalCost = getTripTotalExpenses(trip) + getTripTotalCommissionsToDate(trip);
   return Math.round((totalCost / km) * 100) / 100;
 }
 
 export function getTripProfitPerKm(trip: Trip): number {
-  const { km } = getEffectiveKm(trip);
+  const { km } = getTripKmBasisTotal(trip);
   if (km === 0) return 0;
   return Math.round((getTripNetRevenue(trip) / km) * 100) / 100;
 }
 
 export function getTripProfitPerKmToDate(trip: Trip): number {
-  const { km } = getEffectiveKm(trip);
+  const { km } = getTripKmBasisToDate(trip);
   if (km === 0) return 0;
   return Math.round((getTripNetRevenueToDate(trip) / km) * 100) / 100;
 }

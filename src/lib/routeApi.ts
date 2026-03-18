@@ -40,6 +40,10 @@ const ROUTE_PROVIDER = "tomtom";
 const CACHE_HIT_WRITE_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const COUNTRY_TOKENS = new Set(["brazil", "brasil", "br"]);
 
+function logRouteDebug(event: string, details: Record<string, unknown>) {
+  console.info(`[routeApi] ${event}`, details);
+}
+
 export function normalizeRouteLabel(value: string): string {
   const normalized = value
     .normalize("NFD")
@@ -77,6 +81,8 @@ function shouldUpdateCacheHitMetadata(lastUsedAt: string | null): boolean {
 
 async function resolveRoute(origin: string, destination: string): Promise<RouteResolution> {
   try {
+    logRouteDebug("provider_request", { origin, destination, provider: ROUTE_PROVIDER });
+
     const response = await invokeEdgeFunction<RouteFunctionResponse>("calculate-route", {
       origin,
       destination,
@@ -87,6 +93,13 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
       response.originCoords &&
       response.destCoords
     ) {
+      logRouteDebug("provider_success", {
+        origin,
+        destination,
+        provider: ROUTE_PROVIDER,
+        distanceKm: response.distanceKm,
+      });
+
       return {
         result: {
           distanceKm: response.distanceKm,
@@ -98,6 +111,13 @@ async function resolveRoute(origin: string, destination: string): Promise<RouteR
         destinationQueryUsed: response.destinationQueryUsed,
       };
     }
+
+    logRouteDebug("provider_empty", {
+      origin,
+      destination,
+      provider: ROUTE_PROVIDER,
+      reason: response?.reason || "Não foi possível calcular a rota.",
+    });
 
     return {
       result: null,
@@ -141,6 +161,9 @@ export async function getRouteDistanceDiagnostic(origin: string, destination: st
   };
 }
 
+// O cache de rota é permanente por enquanto para privilegiar economia de chamadas e consistência offline.
+// `forceRefresh` existe para revalidar manualmente uma rota específica sem reabrir a estratégia global.
+// A telemetria de hit é limitada por intervalo para evitar writes excessivos a cada consulta repetida.
 export async function getRouteDistanceDiagnosticWithCache(
   params: { origin: string; destination: string; userId: string; forceRefresh?: boolean },
 ): Promise<RouteDistanceDiagnostic> {
@@ -172,6 +195,14 @@ export async function getRouteDistanceDiagnosticWithCache(
   }
 
   if (cachedRoute && typeof cachedRoute.distance_km === "number" && cachedRoute.distance_km > 0) {
+    logRouteDebug("cache_hit", {
+      origin: params.origin,
+      destination: params.destination,
+      originNormalized,
+      destinationNormalized,
+      distanceKm: cachedRoute.distance_km,
+    });
+
     if (shouldUpdateCacheHitMetadata(cachedRoute.last_used_at)) {
       const nowIso = new Date().toISOString();
       const { error: cacheHitError } = await supabase
@@ -196,6 +227,14 @@ export async function getRouteDistanceDiagnosticWithCache(
       source: "cache",
     };
   }
+
+  logRouteDebug("cache_miss", {
+    origin: params.origin,
+    destination: params.destination,
+    originNormalized,
+    destinationNormalized,
+    forceRefresh: Boolean(params.forceRefresh),
+  });
 
   const resolved = await resolveRoute(params.origin, params.destination);
 
@@ -229,7 +268,25 @@ export async function getRouteDistanceDiagnosticWithCache(
         forceRefresh: Boolean(params.forceRefresh),
         error: upsertError,
       });
+    } else {
+      logRouteDebug("cache_persisted", {
+        origin: params.origin,
+        destination: params.destination,
+        originNormalized,
+        destinationNormalized,
+        distanceKm: resolved.result.distanceKm,
+        provider: ROUTE_PROVIDER,
+        forceRefresh: Boolean(params.forceRefresh),
+      });
     }
+  } else if (resolved.reason) {
+    logRouteDebug("provider_failed_without_cache", {
+      origin: params.origin,
+      destination: params.destination,
+      originNormalized,
+      destinationNormalized,
+      reason: resolved.reason,
+    });
   }
 
   return {

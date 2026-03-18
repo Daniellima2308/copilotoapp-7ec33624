@@ -209,7 +209,15 @@ const TripDetailPage = () => {
     [trip?.freights],
   );
 
-  const vehicle = data.vehicles.find((v) => v.id === trip?.vehicleId);
+  if (!trip) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
+        Viagem não encontrada.
+      </div>
+    );
+  }
+
+  const vehicle = data.vehicles.find((v) => v.id === trip.vehicleId);
   const isOpen = trip.status === "open";
 
   const grossTotal = getTripGrossRevenue(trip);
@@ -278,117 +286,91 @@ const TripDetailPage = () => {
     ? `${vehicle.brand} ${vehicle.model}`
     : "Viagem em aberto";
 
-  const tripSituation = useMemo(() => {
-    const hasFreight = trip.freights.length > 0;
-    const hasFueling = trip.fuelings.length > 0;
-    const hasExpenses = trip.expenses.length > 0;
-    const hasCoreData = hasFreight || hasFueling || hasExpenses;
-    const plannedFreight = trip.freights.find(
-      (freight) => freight.status === "planned",
-    );
-
-    if (activeFreight) {
-      return {
-        title: "Situação da viagem",
-        headline: "Frete atual em andamento",
-        summary:
-          activeFreight.estimatedDistance > 0
-            ? `Líquido até agora ${formatCurrency(netToDate)} • total previsto ${formatCurrency(netTotal)}.`
-            : `Líquido até agora ${formatCurrency(netToDate)} • previsão do trecho ainda em ajuste.`,
-        chips: [
-          { label: "Líquido até agora", value: formatCurrency(netToDate) },
-          { label: "Total previsto", value: formatCurrency(netTotal) },
-        ],
-      };
-    }
-
-    if (plannedFreight) {
-      return {
-        title: "Situação da viagem",
-        headline: "Tem frete aguardando início",
-        summary: `A viagem segue aberta e o próximo trecho ${plannedFreight.origin} → ${plannedFreight.destination} ainda não começou.`,
-        chips: [
-          { label: "Líquido até agora", value: formatCurrency(netToDate) },
-          {
-            label: "Próximo trecho",
-            value: `${plannedFreight.origin} → ${plannedFreight.destination}`,
-          },
-        ],
-      };
-    }
-
-    if (hasCoreData) {
-      return {
-        title: "Situação da viagem",
-        headline: "Viagem pronta para fechar",
-        summary: `Os lançamentos principais já entraram. Se estiver tudo certo, você já pode finalizar quando quiser.`,
-        chips: [
-          { label: "Resultado até agora", value: formatCurrency(netToDate) },
-          {
-            label: "Gastos lançados",
-            value: formatCurrency(totalOperationalCosts),
-          },
-        ],
-      };
-    }
-
-    return {
-      title: "Situação da viagem",
-      headline: "Faltam lançamentos principais",
-      summary:
-        "Cadastre frete, abastecimento ou despesa para a viagem começar a mostrar uma leitura mais útil.",
-      chips: [
-        { label: "Fretes", value: `${trip.freights.length}` },
-        {
-          label: "Lançamentos",
-          value: `${trip.fuelings.length + trip.expenses.length}`,
-        },
-      ],
-    };
-  }, [
-    activeFreight,
-    netToDate,
-    netTotal,
-    totalOperationalCosts,
-    trip.expenses.length,
-    trip.freights,
-    trip.fuelings.length,
-  ]);
-
-  const tripReadingItems = useMemo(
-    () => [
-      {
-        label: "Frete atual",
-        value: activeFreight
-          ? `${activeFreight.origin} → ${activeFreight.destination}`
-          : "Sem frete em andamento",
-        description: activeFreight
-          ? "Olha só para o trecho em andamento e acompanha o que está acontecendo agora."
-          : "Ele aparece quando algum trecho é iniciado.",
-      },
-      {
-        label: "Viagem até agora",
-        value: formatCurrency(netToDate),
-        description:
-          "Mostra a leitura parcial com o que já foi lançado e já está valendo na operação.",
-      },
-      {
-        label: "Total da viagem",
-        value: formatCurrency(netTotal),
-        description:
-          "Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos.",
-      },
-    ],
-    [activeFreight, netToDate, netTotal],
+  const plannedFreight = trip.freights.find(
+    (freight) => freight.status === "planned",
   );
 
-  if (!trip) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
-        Viagem não encontrada.
-      </div>
-    );
-  }
+  const tripSituation = {
+    title: "Situação da viagem",
+    ...(activeFreight
+      ? {
+          headline: "Frete atual em andamento",
+          summary:
+            activeFreight.estimatedDistance > 0
+              ? `Líquido até agora ${formatCurrency(netToDate)} • total previsto ${formatCurrency(netTotal)}.`
+              : `Líquido até agora ${formatCurrency(netToDate)} • previsão do trecho ainda em ajuste.`,
+          chips: [
+            { label: "Líquido até agora", value: formatCurrency(netToDate) },
+            { label: "Total previsto", value: formatCurrency(netTotal) },
+          ],
+        }
+      : plannedFreight
+        ? {
+            headline: "Tem frete aguardando início",
+            summary: `A viagem segue aberta e o próximo trecho ${plannedFreight.origin} → ${plannedFreight.destination} ainda não começou.`,
+            chips: [
+              { label: "Líquido até agora", value: formatCurrency(netToDate) },
+              {
+                label: "Próximo trecho",
+                value: `${plannedFreight.origin} → ${plannedFreight.destination}`,
+              },
+            ],
+          }
+        : trip.freights.length > 0 ||
+            trip.fuelings.length > 0 ||
+            trip.expenses.length > 0
+          ? {
+              headline: "Viagem pronta para fechar",
+              summary:
+                "Os lançamentos principais já entraram. Se estiver tudo certo, você já pode finalizar quando quiser.",
+              chips: [
+                {
+                  label: "Resultado até agora",
+                  value: formatCurrency(netToDate),
+                },
+                {
+                  label: "Gastos lançados",
+                  value: formatCurrency(totalOperationalCosts),
+                },
+              ],
+            }
+          : {
+              headline: "Faltam lançamentos principais",
+              summary:
+                "Cadastre frete, abastecimento ou despesa para a viagem começar a mostrar uma leitura mais útil.",
+              chips: [
+                { label: "Fretes", value: `${trip.freights.length}` },
+                {
+                  label: "Lançamentos",
+                  value: `${trip.fuelings.length + trip.expenses.length}`,
+                },
+              ],
+            }),
+  };
+
+  const tripReadingItems = [
+    {
+      label: "Frete atual",
+      value: activeFreight
+        ? `${activeFreight.origin} → ${activeFreight.destination}`
+        : "Sem frete em andamento",
+      description: activeFreight
+        ? "Olha só para o trecho em andamento e acompanha o que está acontecendo agora."
+        : "Ele aparece quando algum trecho é iniciado.",
+    },
+    {
+      label: "Viagem até agora",
+      value: formatCurrency(netToDate),
+      description:
+        "Mostra a leitura parcial com o que já foi lançado e já está valendo na operação.",
+    },
+    {
+      label: "Total da viagem",
+      value: formatCurrency(netTotal),
+      description:
+        "Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos.",
+    },
+  ];
 
   const handleFinish = async (km: number) => {
     try {

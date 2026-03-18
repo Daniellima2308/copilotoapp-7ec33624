@@ -50,6 +50,7 @@ interface FreightTabProps {
       Freight,
       "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance"
     >,
+    options?: { forceRouteRefresh?: boolean },
   ) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   startFreight: (tripId: string, freightId: string) => Promise<void>;
@@ -287,14 +288,19 @@ export function FreightTab({
 
     try {
       setIsSavingRouteReview(true);
-      await updateFreight(trip.id, routeReviewFreight.id, {
-        origin: editOrigin.trim(),
-        destination: editDestination.trim(),
-        kmInitial: routeReviewFreight.kmInitial,
-        grossValue: routeReviewFreight.grossValue,
-        commissionPercent: routeReviewFreight.commissionPercent,
-        createdAt: routeReviewFreight.createdAt,
-      });
+      await updateFreight(
+        trip.id,
+        routeReviewFreight.id,
+        {
+          origin: editOrigin.trim(),
+          destination: editDestination.trim(),
+          kmInitial: routeReviewFreight.kmInitial,
+          grossValue: routeReviewFreight.grossValue,
+          commissionPercent: routeReviewFreight.commissionPercent,
+          createdAt: routeReviewFreight.createdAt,
+        },
+        { forceRouteRefresh: true },
+      );
 
       toast({
         title: "Rota revisada",

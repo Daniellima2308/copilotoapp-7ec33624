@@ -61,9 +61,12 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
 
       {currentFreight ? (
         <div className="space-y-2.5">
-          <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-tight">
-            <MapPin className="w-3.5 h-3.5 text-primary" /> {currentFreight.origin} → {currentFreight.destination}
-          </p>
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Frete em andamento</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-tight">
+              <MapPin className="w-3.5 h-3.5 text-primary" /> {currentFreight.origin} → {currentFreight.destination}
+            </p>
+          </div>
 
           {shouldShowEta ? (
             <>
@@ -94,7 +97,7 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
         </div>
       ) : (
         <div className="rounded-lg bg-secondary/50 p-3">
-          <p className="text-xs font-semibold text-foreground">Sem frete em andamento para calcular previsão.</p>
+          <p className="text-xs font-semibold text-foreground">Nenhum frete em andamento neste momento.</p>
           <p className="text-[11px] text-muted-foreground mt-1">
             {hasPlannedFreight
               ? "Próximo frete aguardando início. Toque em Iniciar no trecho planejado."

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Trip, Freight, Vehicle, FREIGHT_STATUS_LABELS } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
-import { CheckCircle2, MapPin, PlayCircle, Plus, Trash2, Ruler, Wallet, Pencil } from "lucide-react";
+import { CheckCircle2, Loader2, MapPin, PlayCircle, Plus, Trash2, Ruler, Wallet, Pencil } from "lucide-react";
 import { CityAutocomplete } from "@/components/CityAutocomplete";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -41,6 +41,10 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
   const [finishingFreight, setFinishingFreight] = useState<Freight | null>(null);
   const [editingFreight, setEditingFreight] = useState<Freight | null>(null);
   const [editKmInitial, setEditKmInitial] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFinishingFreight, setIsFinishingFreight] = useState(false);
+  const [isSavingKm, setIsSavingKm] = useState(false);
+  const [pendingStartId, setPendingStartId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const defaultCommission = useMemo(() => getDefaultCommissionPercentForVehicle(vehicle), [vehicle]);
@@ -72,12 +76,13 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !dest || !km || !gross) return;
+    if (!origin || !dest || !km || !gross || isSubmitting) return;
     if (showCommissionInput && !comm) return;
 
     const commissionPercent = showCommissionInput ? parseFloat(comm) : 0;
 
     try {
+      setIsSubmitting(true);
       await addFreight(trip.id, { origin, destination: dest, kmInitial: parseFloat(km), grossValue: parseFloat(gross), commissionPercent, createdAt: new Date().toISOString() });
       setOrigin("");
       setDest("");
@@ -88,29 +93,46 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
       setShowForm(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível salvar este frete agora.";
-      toast({ title: "Não deu para salvar", description: message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar agora", description: message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStartFreight = async (freightId: string) => {
+    if (pendingStartId) return;
+    try {
+      setPendingStartId(freightId);
+      await startFreight(trip.id, freightId);
+    } finally {
+      setPendingStartId(null);
     }
   };
 
   const handleCompleteWithOption = async (option: "complete_only" | "start_next_if_planned") => {
-    if (!finishingFreight) return;
+    if (!finishingFreight || isFinishingFreight) return;
     try {
+      setIsFinishingFreight(true);
       const { promotedFreightId } = await completeFreight(trip.id, finishingFreight.id, option);
       const hadPlannedFreight = trip.freights.some((f) => f.status === "planned" && f.id !== finishingFreight.id);
 
       if (option === "start_next_if_planned") {
         if (promotedFreightId) {
-          toast({ title: "Frete concluído", description: "Próximo frete iniciado e hero atualizado." });
+          toast({ title: "Frete concluído", description: "Próximo frete iniciado." });
         } else {
           onRequestOpenFreightForm?.();
-          toast({ title: "Frete concluído", description: "Cadastre o próximo frete para continuar a viagem." });
+          toast({ title: "Frete concluído", description: "Agora você pode lançar o próximo frete." });
         }
       } else if (!hadPlannedFreight) {
-        toast({ title: "Frete concluído", description: "Sem frete em andamento. Você pode finalizar a viagem quando quiser." });
+        toast({ title: "Frete concluído", description: "Viagem pronta para finalizar quando você quiser." });
       } else {
-        toast({ title: "Frete concluído", description: "Próximo frete ficou como planejado aguardando início." });
+        toast({ title: "Frete concluído", description: "Próximo frete ficou aguardando início." });
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tenta novamente.";
+      toast({ title: "Não deu para concluir o frete", description: message, variant: "destructive" });
     } finally {
+      setIsFinishingFreight(false);
       setFinishingFreight(null);
     }
   };
@@ -121,22 +143,29 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
   };
 
   const handleSaveKmEdit = async () => {
-    if (!editingFreight) return;
+    if (!editingFreight || isSavingKm) return;
 
     const parsedKm = Number(editKmInitial);
     if (!Number.isFinite(parsedKm)) return;
 
-    await updateFreight(trip.id, editingFreight.id, {
-      origin: editingFreight.origin,
-      destination: editingFreight.destination,
-      kmInitial: parsedKm,
-      grossValue: editingFreight.grossValue,
-      commissionPercent: editingFreight.commissionPercent,
-      createdAt: editingFreight.createdAt,
-    });
+    try {
+      setIsSavingKm(true);
+      await updateFreight(trip.id, editingFreight.id, {
+        origin: editingFreight.origin,
+        destination: editingFreight.destination,
+        kmInitial: parsedKm,
+        grossValue: editingFreight.grossValue,
+        commissionPercent: editingFreight.commissionPercent,
+        createdAt: editingFreight.createdAt,
+      });
 
-    toast({ title: "KM inicial atualizado", description: "Odômetro, hero e progresso foram recalculados." });
-    setEditingFreight(null);
+      setEditingFreight(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tenta novamente.";
+      toast({ title: "Não foi possível salvar agora", description: message, variant: "destructive" });
+    } finally {
+      setIsSavingKm(false);
+    }
   };
 
   return (
@@ -192,12 +221,12 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           {isOpen && (
             <div className="flex flex-wrap gap-2">
               {f.status !== "in_progress" && f.status !== "completed" && (
-                <button onClick={() => startFreight(trip.id, f.id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary">
-                  <PlayCircle className="w-3.5 h-3.5" /> Iniciar
+                <button onClick={() => handleStartFreight(f.id)} disabled={pendingStartId === f.id} className="inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary disabled:opacity-60 disabled:cursor-not-allowed">
+                  {pendingStartId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />} Iniciar
                 </button>
               )}
               {f.status === "in_progress" && (
-                <button onClick={() => setFinishingFreight(f)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary">
+                <button onClick={() => setFinishingFreight(f)} className="inline-flex min-h-[44px] items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-secondary">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Concluir
                 </button>
               )}
@@ -210,8 +239,8 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           <div className="grid grid-cols-2 gap-3">
             <CityAutocomplete placeholder="Origem" value={origin} onChange={setOrigin} className="input-field" />
             <CityAutocomplete placeholder="Destino" value={dest} onChange={setDest} className="input-field" />
-            <input placeholder="KM Inicial" type="number" min="0" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" />
-            <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" />
+            <input placeholder="KM Inicial" type="number" min="0" value={km} onChange={(e) => setKm(e.target.value)} className="input-field" disabled={isSubmitting} />
+            <input placeholder="Valor Bruto (R$)" type="number" step="0.01" min="0.01" value={gross} onChange={(e) => setGross(e.target.value)} className="input-field" disabled={isSubmitting} />
           </div>
 
           {showToggle && (
@@ -219,6 +248,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
               <input
                 type="checkbox"
                 checked={useCommission}
+                disabled={isSubmitting}
                 onChange={(e) => {
                   const shouldUse = e.target.checked;
                   setUseCommission(shouldUse);
@@ -242,7 +272,7 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
               max="100"
               value={comm}
               onChange={(e) => setComm(e.target.value)}
-              disabled={!canEditCommissionPercentForFreight(vehicle)}
+              disabled={isSubmitting || !canEditCommissionPercentForFreight(vehicle)}
               className="input-field"
             />
           )}
@@ -252,53 +282,52 @@ export function FreightTab({ trip, vehicle, isOpen, showForm, setShowForm, addFr
           )}
 
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold">Salvar</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium">Cancelar</button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">{isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : "Salvar frete"}</button>
+            <button type="button" onClick={() => setShowForm(false)} disabled={isSubmitting} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">Cancelar</button>
           </div>
         </form>
       ) : (
         <button onClick={() => setShowForm(true)}
-          className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium">
+          className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium min-h-[44px]">
           <Plus className="w-4 h-4" /> Novo Frete
         </button>
       ))}
 
-      <Dialog open={!!finishingFreight} onOpenChange={(open) => !open && setFinishingFreight(null)}>
-        <DialogContent>
+      <Dialog open={!!finishingFreight} onOpenChange={(open) => !open && !isFinishingFreight && setFinishingFreight(null)}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Concluir frete atual?</DialogTitle>
             <DialogDescription>
-              O frete em andamento será marcado como concluído. Você deseja iniciar outro frete agora?
+              {finishingFreight
+                ? `Você vai encerrar o trecho ${finishingFreight.origin} → ${finishingFreight.destination}. Se houver outro frete planejado, dá para iniciar na sequência.`
+                : ""}
             </DialogDescription>
           </DialogHeader>
+
+          <div className="rounded-lg bg-secondary/50 p-3 text-xs text-muted-foreground leading-relaxed">
+            Toque em <span className="font-semibold text-foreground">Iniciar próximo frete</span> para já seguir com o próximo trecho planejado. Se preferir, conclua só este frete e decida depois.
+          </div>
+
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <button className="w-full rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" onClick={() => handleCompleteWithOption("start_next_if_planned")}>Iniciar outro frete agora</button>
-            <button className="w-full rounded-md border px-3 py-2 text-sm font-semibold" onClick={() => handleCompleteWithOption("complete_only")}>Só concluir este frete</button>
-            <button className="w-full rounded-md bg-secondary px-3 py-2 text-sm" onClick={() => setFinishingFreight(null)}>Cancelar</button>
+            <button className="w-full rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2" disabled={isFinishingFreight} onClick={() => handleCompleteWithOption("start_next_if_planned")}>{isFinishingFreight ? <><Loader2 className="w-4 h-4 animate-spin" /> Concluindo...</> : "Concluir e iniciar próximo"}</button>
+            <button className="w-full rounded-md border px-3 py-2 text-sm font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed" disabled={isFinishingFreight} onClick={() => handleCompleteWithOption("complete_only")}>Só concluir este frete</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingFreight} onOpenChange={(open) => !open && setEditingFreight(null)}>
-        <DialogContent>
+      <Dialog open={!!editingFreight} onOpenChange={(open) => !open && !isSavingKm && setEditingFreight(null)}>
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Editar KM inicial</DialogTitle>
-            <DialogDescription>
-              Atualize apenas o KM inicial deste frete. O Copiloto recalcula odômetro e hero automaticamente.
-            </DialogDescription>
+            <DialogDescription>Ajuste o KM deste frete. O progresso da viagem será recalculado.</DialogDescription>
           </DialogHeader>
-          <input
-            type="number"
-            min="0"
-            value={editKmInitial}
-            onChange={(e) => setEditKmInitial(e.target.value)}
-            className="input-field"
-            placeholder="KM inicial"
-          />
-          <DialogFooter>
-            <button className="rounded-md bg-secondary px-3 py-2 text-sm" onClick={() => setEditingFreight(null)}>Cancelar</button>
-            <button className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground" onClick={handleSaveKmEdit}>Salvar</button>
-          </DialogFooter>
+          <div className="space-y-3">
+            <input value={editKmInitial} onChange={(e) => setEditKmInitial(e.target.value)} type="number" min="0" className="input-field" disabled={isSavingKm} />
+            <div className="flex gap-2">
+              <button onClick={handleSaveKmEdit} disabled={isSavingKm} className="flex-1 gradient-profit text-primary-foreground rounded-lg py-2.5 text-sm font-bold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">{isSavingKm ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : "Salvar ajuste"}</button>
+              <button onClick={() => setEditingFreight(null)} disabled={isSavingKm} className="px-4 py-2.5 bg-secondary rounded-lg text-sm font-medium min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">Cancelar</button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

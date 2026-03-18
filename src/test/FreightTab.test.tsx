@@ -66,7 +66,7 @@ describe("FreightTab", () => {
     fireEvent.change(screen.getByPlaceholderText("KM Inicial"), { target: { value: "100" } });
     fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), { target: { value: "1000" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar frete" }));
 
     await waitFor(() => {
       expect(addFreight).toHaveBeenCalledTimes(1);
@@ -95,7 +95,7 @@ describe("FreightTab", () => {
     fireEvent.change(screen.getByPlaceholderText("KM Inicial"), { target: { value: "100" } });
     fireEvent.change(screen.getByPlaceholderText("Valor Bruto (R$)"), { target: { value: "1000" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar frete" }));
 
     await waitFor(() => {
       expect(addFreight).toHaveBeenCalledTimes(1);

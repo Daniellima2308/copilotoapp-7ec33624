@@ -415,6 +415,7 @@ describe("AppContext route cache flows", () => {
       kmInitial: 220,
       grossValue: 1700,
       commissionPercent: 10,
+      createdAt: new Date().toISOString(),
     });
 
     expect(dbState.freights).toEqual(expect.arrayContaining([

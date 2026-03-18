@@ -381,6 +381,7 @@ describe("AppContext route cache flows", () => {
       kmInitial: 200,
       grossValue: 1800,
       commissionPercent: 10,
+      createdAt: new Date().toISOString(),
     });
 
     expect(sharedMocks.getRouteDistanceDiagnosticWithCacheMock).toHaveBeenCalledWith({

@@ -12,6 +12,17 @@ import { getFreightStatusForInsert, normalizeTripFreights } from "@/lib/freightS
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+function showActionSuccess(title: string, description?: string) {
+  toast({ title, description });
+}
+
+function showActionError(title: string, description?: string) {
+  toast({ title, description: description || "Tenta novamente.", variant: "destructive" });
+}
+
+function showOfflineSaved(title: string) {
+  toast({ title, description: "Salvo no celular. Quando houver sinal, o app envia para a nuvem." });
+}
 
 function buildRouteFailureDetails(params: {
   reason: string | null;
@@ -688,7 +699,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Validate: trip must have at least 1 freight
     if (trip && trip.freights.length === 0) {
-      toast({ title: "Não é possível finalizar", description: "Adicione pelo menos 1 frete antes de finalizar a viagem.", variant: "destructive" });
+      showActionError("Não foi possível finalizar a viagem", "Adicione pelo menos 1 frete antes de finalizar a viagem.");
       throw new Error("Trip must have at least 1 freight");
     }
 
@@ -696,14 +707,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (!isOnline()) {
       addToOfflineQueue({ type: "finishTrip", payload: { tripId: id, arrivalKm, vehicleId: trip?.vehicleId, activeFreightId: activeFreight?.id ?? null } });
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Viagem finalizada");
       return { autoCompletedFreightId: activeFreight?.id ?? null };
     }
 
     if (arrivalKm != null) {
       const arrivalValidation = validatePositiveNumber(arrivalKm, "KM de chegada", true);
       if (!arrivalValidation.isValid) {
-        toast({ title: "Não deu para finalizar", description: arrivalValidation.message, variant: "destructive" });
+        showActionError("Não foi possível finalizar a viagem", arrivalValidation.message);
         return { autoCompletedFreightId: activeFreight?.id ?? null };
       }
     }
@@ -717,6 +728,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await updateVehicleKm(trip.vehicleId, arrivalKm);
     }
     await fetchData();
+    showActionSuccess("Viagem finalizada", activeFreight?.id ? "Frete em andamento concluído junto com a viagem." : undefined);
     return { autoCompletedFreightId: activeFreight?.id ?? null };
   }, [data.trips, fetchData, updateVehicleKm]);
 
@@ -780,7 +792,7 @@ await updateTripEstimatedDistanceBySum(tripId);
         commission_percent: f.commissionPercent, commission_value: commissionValue,
         status: freightStatus, estimated_distance: 0,
       }});
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Frete lançado na viagem");
       return;
     }
 
@@ -825,12 +837,13 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
     }
     await recalculateTripEstimatedDistance(tripId);
     await fetchData();
+    showActionSuccess("Frete lançado na viagem");
   }, [user, data.trips, fetchData, recalculateTripEstimatedDistance]);
 
   const deleteFreight = useCallback(async (tripId: string, freightId: string) => {
     if (!isOnline()) {
       addToOfflineQueue({ type: "deleteFreight", payload: { id: freightId } });
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Frete removido da viagem");
       return;
     }
 
@@ -849,6 +862,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
     await supabase.from("freights").update({ status: "planned" }).eq("trip_id", tripId).eq("status", "in_progress");
     await supabase.from("freights").update({ status: "in_progress" }).eq("id", freightId);
     await fetchData();
+    showActionSuccess("Frete em andamento");
   }, [fetchData]);
 
   const completeFreight = useCallback(async (
@@ -888,7 +902,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
     const percentValidation = validatePercent(f.commissionPercent, "Comissão");
     if (!kmValidation.isValid || !grossValidation.isValid || !percentValidation.isValid) {
       const message = kmValidation.message || grossValidation.message || percentValidation.message;
-      toast({ title: "Não deu para atualizar o frete", description: message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", message);
       return;
     }
 
@@ -967,6 +981,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
       await recalculateVehicleKm(vehicleId);
     }
     await fetchData();
+    showActionSuccess("Frete atualizado");
   }, [user, data.trips, fetchData, recalculateTripEstimatedDistance]);
 
   const addFueling = useCallback(async (tripId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
@@ -978,7 +993,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
 
     if (!totalValidation.isValid || !litersValidation.isValid || !kmValidation.isValid) {
       const message = totalValidation.message || litersValidation.message || kmValidation.message;
-      toast({ title: "Não deu para salvar o abastecimento", description: message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", message);
       return;
     }
 
@@ -990,7 +1005,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
         km_current: f.kmCurrent, full_tank: f.fullTank, average: 0, date: f.date,
         receipt_url: f.receiptUrl || null,
       }});
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Abastecimento salvo");
       return;
     }
 
@@ -1052,6 +1067,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
       await updateVehicleKm(trip.vehicleId, f.kmCurrent);
     }
     await fetchData();
+    showActionSuccess("Abastecimento salvo");
   }, [user, data.trips, fetchData, updateVehicleKm]);
 
   const updateFueling = useCallback(async (tripId: string, fuelingId: string, f: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
@@ -1062,7 +1078,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
     const kmValidation = validatePositiveNumber(f.kmCurrent, "KM atual", true);
     if (!totalValidation.isValid || !litersValidation.isValid || !kmValidation.isValid) {
       const message = totalValidation.message || litersValidation.message || kmValidation.message;
-      toast({ title: "Não deu para atualizar o abastecimento", description: message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", message);
       return;
     }
     const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
@@ -1114,12 +1130,13 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
       await recalculateVehicleKm(trip.vehicleId);
     }
     await fetchData();
+    showActionSuccess("Abastecimento salvo");
   }, [user, data.trips, fetchData]);
 
   const deleteFueling = useCallback(async (tripId: string, fuelingId: string) => {
     if (!isOnline()) {
       addToOfflineQueue({ type: "deleteFueling", payload: { id: fuelingId } });
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Abastecimento removido");
       return;
     }
     const trip = data.trips.find(t => t.id === tripId);
@@ -1137,7 +1154,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
 
     const valueValidation = validatePositiveNumber(e.value, "Valor da despesa");
     if (!valueValidation.isValid) {
-      toast({ title: "Não deu para salvar a despesa", description: valueValidation.message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", valueValidation.message);
       return;
     }
     showWarnings(getNumericWarnings({ totalValue: e.value }));
@@ -1147,7 +1164,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
         trip_id: tripId, category: e.category, description: e.description,
         value: e.value, date: e.date, receipt_url: e.receiptUrl || null,
       }});
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Despesa adicionada");
       return;
     }
 
@@ -1157,12 +1174,13 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
       receipt_url: e.receiptUrl || null,
     });
     await fetchData();
+    showActionSuccess("Despesa adicionada");
   }, [user, fetchData]);
 
   const deleteExpense = useCallback(async (_tripId: string, expenseId: string) => {
     if (!isOnline()) {
       addToOfflineQueue({ type: "deleteExpense", payload: { id: expenseId } });
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Despesa removida");
       return;
     }
     await supabase.from("expenses").delete().eq("id", expenseId);
@@ -1172,7 +1190,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
   const updateExpense = useCallback(async (_tripId: string, expenseId: string, e: Omit<Expense, "id" | "tripId">) => {
     const valueValidation = validatePositiveNumber(e.value, "Valor da despesa");
     if (!valueValidation.isValid) {
-      toast({ title: "Não deu para atualizar a despesa", description: valueValidation.message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", valueValidation.message);
       return;
     }
     showWarnings(getNumericWarnings({ totalValue: e.value }));
@@ -1189,7 +1207,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
 
     const valueValidation = validatePositiveNumber(e.value, "Valor do gasto pessoal");
     if (!valueValidation.isValid) {
-      toast({ title: "Não deu para salvar", description: valueValidation.message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", valueValidation.message);
       return;
     }
     showWarnings(getNumericWarnings({ totalValue: e.value }));
@@ -1199,7 +1217,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
         trip_id: tripId, category: e.category, description: e.description,
         value: e.value, date: e.date,
       }});
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Gasto pessoal salvo");
       return;
     }
 
@@ -1208,12 +1226,13 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
       description: e.description, value: e.value, date: e.date,
     });
     await fetchData();
+    showActionSuccess("Gasto pessoal salvo");
   }, [user, fetchData]);
 
   const deletePersonalExpense = useCallback(async (_tripId: string, id: string) => {
     if (!isOnline()) {
       addToOfflineQueue({ type: "deletePersonalExpense", payload: { id } });
-      toast({ title: "Salvo no celular", description: "Será enviado para a nuvem quando houver sinal." });
+      showOfflineSaved("Gasto pessoal removido");
       return;
     }
     await supabase.from("personal_expenses").delete().eq("id", id);
@@ -1223,7 +1242,7 @@ const { estimatedDistance, diagnostic: distanceDiagnostic } = await resolveFreig
   const updatePersonalExpense = useCallback(async (_tripId: string, id: string, e: Omit<PersonalExpense, "id" | "tripId">) => {
     const valueValidation = validatePositiveNumber(e.value, "Valor do gasto pessoal");
     if (!valueValidation.isValid) {
-      toast({ title: "Não deu para atualizar", description: valueValidation.message, variant: "destructive" });
+      showActionError("Não foi possível salvar agora", valueValidation.message);
       return;
     }
     showWarnings(getNumericWarnings({ totalValue: e.value }));

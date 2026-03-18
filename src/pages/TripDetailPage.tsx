@@ -36,6 +36,7 @@ import {
   Route,
   Sparkles,
   Wallet,
+  Loader2,
 } from "lucide-react";
 import { exportSingleTripPdf } from "@/lib/exportPdf";
 import { FinishTripModal } from "@/components/FinishTripModal";
@@ -121,6 +122,8 @@ const TripDetailPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [activeDetail, setActiveDetail] = useState<MetricDetail | null>(null);
+  const [isFinishingTrip, setIsFinishingTrip] = useState(false);
+  const [isDeletingTrip, setIsDeletingTrip] = useState(false);
 
   const commissionsByFreight = useMemo(
     () => (trip?.freights ?? []).map((f) => ({ label: `${f.origin} → ${f.destination}`, value: formatCurrency(f.commissionValue) })),
@@ -169,12 +172,14 @@ const TripDetailPage = () => {
   const activeFreight = getCurrentFreight(trip);
 
   const handleFinish = async (km: number) => {
-    const result = await finishTrip(trip.id, km);
-    setShowFinishModal(false);
-    if (result?.autoCompletedFreightId) {
-      window.alert("Viagem finalizada e o frete em andamento foi concluído automaticamente.");
+    try {
+      setIsFinishingTrip(true);
+      await finishTrip(trip.id, km);
+      setShowFinishModal(false);
+      navigate("/");
+    } finally {
+      setIsFinishingTrip(false);
     }
-    navigate("/");
   };
 
 
@@ -199,20 +204,26 @@ const TripDetailPage = () => {
               <>
                 <button
                   onClick={() => setShowFinishModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors text-xs font-semibold min-h-[44px]"
+                  disabled={isFinishingTrip || isDeletingTrip}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-profit/10 hover:bg-profit/20 transition-colors text-xs font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle className="w-4 h-4 text-profit" /> <span className="text-profit">Finalizar</span>
+                  {isFinishingTrip ? <Loader2 className="w-4 h-4 text-profit animate-spin" /> : <CheckCircle className="w-4 h-4 text-profit" />} <span className="text-profit">Finalizar</span>
                 </button>
                 <button
                   onClick={async () => {
-                    if (confirm("Excluir viagem?")) {
+                    if (!confirm("Excluir viagem?")) return;
+                    try {
+                      setIsDeletingTrip(true);
                       await deleteTrip(trip.id);
                       navigate("/");
+                    } finally {
+                      setIsDeletingTrip(false);
                     }
                   }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors text-xs font-semibold min-h-[44px]"
+                  disabled={isFinishingTrip || isDeletingTrip}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-expense/10 hover:bg-expense/20 transition-colors text-xs font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Trash2 className="w-4 h-4 text-expense" /> <span className="text-expense">Excluir</span>
+                  {isDeletingTrip ? <Loader2 className="w-4 h-4 text-expense animate-spin" /> : <Trash2 className="w-4 h-4 text-expense" />} <span className="text-expense">Excluir</span>
                 </button>
               </>
             )}
@@ -221,7 +232,13 @@ const TripDetailPage = () => {
       </header>
 
       <div className="px-4 space-y-4">
-        <TripHeroCard trip={trip} vehicle={vehicle} />
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Frete atual</h2>
+            <p className="text-xs text-muted-foreground">Acompanhe o trecho que está rodando agora e o que falta para chegar.</p>
+          </div>
+          <TripHeroCard trip={trip} vehicle={vehicle} />
+        </section>
 
         {isOpen && (
           <section className="gradient-card rounded-xl p-3.5 space-y-3 border border-border/70">
@@ -240,7 +257,12 @@ const TripDetailPage = () => {
           </section>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Viagem até agora</h2>
+            <p className="text-xs text-muted-foreground">Aqui entram só os valores e lançamentos já feitos nesta viagem aberta.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
           <MetricCard
             label={isOpen ? "Bruto lançado" : "Bruto"}
             state="LANÇADO"
@@ -404,7 +426,43 @@ const TripDetailPage = () => {
                 : undefined,
             })}
           />
-        </div>
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Visão geral da viagem</h2>
+            <p className="text-xs text-muted-foreground">Leitura rápida para separar o que é do frete atual do que já ficou consolidado na viagem.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            <div className="gradient-card rounded-xl p-3 border border-border/70">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Resumo rápido</p>
+                  <h3 className="text-sm font-bold text-foreground">Frete atual x viagem até agora</h3>
+                </div>
+                <span className="text-[11px] text-muted-foreground">Sem mudar a lógica da viagem</span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg bg-secondary/50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Frete atual</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{activeFreight ? `${activeFreight.origin} → ${activeFreight.destination}` : "Sem frete em andamento"}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{activeFreight ? "Esse bloco acompanha o trecho em andamento, ETA e status do momento." : "Quando um frete for iniciado, ele aparece aqui com progresso e previsão."}</p>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Viagem até agora</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(netToDate)}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Resultado parcial com bruto lançado, comissão, abastecimentos e despesas já registrados.</p>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Total da viagem</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{formatCurrency(netTotal)}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">Inclui também o que já está planejado para a viagem inteira, mesmo antes de acontecer.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="flex gap-1 bg-secondary rounded-lg p-1">
           {([[
@@ -440,6 +498,7 @@ const TripDetailPage = () => {
         minKm={vehicle?.currentKm || 0}
         activeFreight={activeFreight ? { origin: activeFreight.origin, destination: activeFreight.destination } : null}
         onConfirm={handleFinish}
+        isSubmitting={isFinishingTrip}
       />
     </div>
   );

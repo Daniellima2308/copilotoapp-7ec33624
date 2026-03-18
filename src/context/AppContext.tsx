@@ -25,6 +25,21 @@ function buildRouteFailureDetails(params: {
   return `${reason}${queryInfo}`;
 }
 
+function buildOfflineSyncRouteToast(routeSyncFailures: string[]): { title: string; description: string } | null {
+  if (routeSyncFailures.length === 0) return null;
+  if (routeSyncFailures.length === 1) {
+    return {
+      title: "Frete sincronizado sem rota estimada",
+      description: routeSyncFailures[0],
+    };
+  }
+
+  return {
+    title: "Alguns fretes sincronizaram sem rota estimada",
+    description: `${routeSyncFailures.length} rotas falharam no sync offline. Exemplo: ${routeSyncFailures[0]}`,
+  };
+}
+
 interface FreightRouteResolution {
   estimatedDistance: number;
   diagnostic: {
@@ -542,10 +557,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      if (routeSyncFailures.length > 0) {
+      const routeSyncToast = buildOfflineSyncRouteToast(routeSyncFailures);
+      if (routeSyncToast) {
         toast({
-          title: "Frete sincronizado sem rota estimada",
-          description: routeSyncFailures[0],
+          ...routeSyncToast,
           variant: "destructive",
         });
       }

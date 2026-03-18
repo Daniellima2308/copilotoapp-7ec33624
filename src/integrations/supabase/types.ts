@@ -435,58 +435,55 @@ export type Database = {
         Row: {
           created_at: string
           destination_label: string
-          destination_lat: number
-          destination_lon: number
+          destination_lat: number | null
+          destination_lon: number | null
           destination_normalized: string
           distance_km: number
           hit_count: number
           id: string
-          last_used_at: string | null
+          last_used_at: string
           last_verified_at: string
           origin_label: string
-          origin_lat: number
-          origin_lon: number
+          origin_lat: number | null
+          origin_lon: number | null
           origin_normalized: string
           provider: string
-          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           destination_label: string
-          destination_lat: number
-          destination_lon: number
+          destination_lat?: number | null
+          destination_lon?: number | null
           destination_normalized: string
           distance_km: number
           hit_count?: number
           id?: string
-          last_used_at?: string | null
+          last_used_at?: string
           last_verified_at?: string
           origin_label: string
-          origin_lat: number
-          origin_lon: number
+          origin_lat?: number | null
+          origin_lon?: number | null
           origin_normalized: string
           provider?: string
-          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           destination_label?: string
-          destination_lat?: number
-          destination_lon?: number
+          destination_lat?: number | null
+          destination_lon?: number | null
           destination_normalized?: string
           distance_km?: number
           hit_count?: number
           id?: string
-          last_used_at?: string | null
+          last_used_at?: string
           last_verified_at?: string
           origin_label?: string
-          origin_lat?: number
-          origin_lon?: number
+          origin_lat?: number | null
+          origin_lon?: number | null
           origin_normalized?: string
           provider?: string
-          updated_at?: string
           user_id?: string
         }
         Relationships: []

@@ -337,6 +337,7 @@ describe("AppContext route cache flows", () => {
       kmInitial: 100,
       grossValue: 2400,
       commissionPercent: 10,
+      createdAt: new Date().toISOString(),
     });
 
     expect(offlineState.queue).toHaveLength(1);

@@ -50,7 +50,11 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { getRouteDistanceDiagnostic, getRouteDistanceDiagnosticWithCache, normalizeRouteLabel } from "@/lib/routeApi";
+import {
+  getRouteDistanceDiagnostic,
+  getRouteDistanceDiagnosticWithCache,
+  normalizeRouteLabel,
+} from "@/lib/routeApi";
 import { invokeEdgeFunction } from "@/lib/supabaseClient";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -79,7 +83,10 @@ describe("routeApi diagnostics", () => {
       destinationQueryUsed: "São Paulo, SP, Brazil",
     });
 
-    const result = await getRouteDistanceDiagnostic("Canoas - RS", "São Paulo - SP");
+    const result = await getRouteDistanceDiagnostic(
+      "Canoas - RS",
+      "São Paulo - SP",
+    );
 
     expect(result.distanceKm).toBe(1110);
     expect(result.reason).toBeNull();
@@ -124,9 +131,13 @@ describe("routeApi diagnostics", () => {
     expect(result.source).toBe("provider");
   });
 
-  it("retorna motivo quando chamada da edge function falha", async () => {
+  it("sanitiza falha técnica da edge function para mensagem humana", async () => {
     maybeSingleMock.mockResolvedValue({ data: null, error: null });
-    vi.mocked(invokeEdgeFunction).mockRejectedValue(new Error("Edge function error [500]: TOMTOM_API_KEY is not configured"));
+    vi.mocked(invokeEdgeFunction).mockRejectedValue(
+      new Error(
+        "Falha ao acessar calculate-route: Edge Function returned a non-2xx status code",
+      ),
+    );
 
     const result = await getRouteDistanceDiagnosticWithCache({
       origin: "Canoas - RS",
@@ -135,13 +146,21 @@ describe("routeApi diagnostics", () => {
     });
 
     expect(result.distanceKm).toBeNull();
-    expect(result.reason).toContain("TOMTOM_API_KEY");
+    expect(result.reason).toContain(
+      "Não deu para liberar a previsão da rota agora",
+    );
+    expect(result.reason).not.toContain("Edge Function");
+    expect(result.reason).not.toContain("non-2xx");
   });
-
 
   it("não atualiza telemetria em cache hit recente", async () => {
     maybeSingleMock.mockResolvedValue({
-      data: { id: "cache-1", distance_km: 450, hit_count: 3, last_used_at: new Date().toISOString() },
+      data: {
+        id: "cache-1",
+        distance_km: 450,
+        hit_count: 3,
+        last_used_at: new Date().toISOString(),
+      },
       error: null,
     });
 

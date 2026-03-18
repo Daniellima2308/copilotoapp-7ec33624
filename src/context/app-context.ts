@@ -10,6 +10,11 @@ import type {
   PersonalExpense,
 } from "@/types";
 
+export interface FreightUpdateResult {
+  status: "updated" | "route_refreshed" | "saved_without_route" | "blocked";
+  userMessage?: string;
+}
+
 export interface AppContextType {
   data: AppData;
   loading: boolean;
@@ -40,8 +45,8 @@ export interface AppContextType {
       Freight,
       "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance"
     >,
-    options?: { forceRouteRefresh?: boolean },
-  ) => Promise<void>;
+    options?: { forceRouteRefresh?: boolean; suppressSuccessToast?: boolean },
+  ) => Promise<FreightUpdateResult>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   startFreight: (tripId: string, freightId: string) => Promise<void>;
   completeFreight: (

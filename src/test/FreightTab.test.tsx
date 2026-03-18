@@ -139,7 +139,9 @@ describe("FreightTab", () => {
   });
 
   it("força nova tentativa de previsão ao revisar rota sem alterar campos", async () => {
-    const updateFreight = vi.fn().mockResolvedValue(undefined);
+    const updateFreight = vi
+      .fn()
+      .mockResolvedValue({ status: "route_refreshed" });
 
     render(
       <FreightTab
@@ -183,9 +185,68 @@ describe("FreightTab", () => {
         "trip-1",
         "f-1",
         expect.objectContaining({ origin: "SP", destination: "MG" }),
-        { forceRouteRefresh: true },
+        { forceRouteRefresh: true, suppressSuccessToast: true },
       );
     });
+  });
+
+  it("mostra feedback único quando a rota continua sem previsão após revisão", async () => {
+    const updateFreight = vi.fn().mockResolvedValue({
+      status: "saved_without_route",
+      userMessage:
+        "Origem e destino foram confirmados, mas a previsão da rota ainda não foi liberada.",
+    });
+
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            {
+              id: "f-1",
+              tripId: tripBase.id,
+              origin: "SP",
+              destination: "MG",
+              kmInitial: 100,
+              grossValue: 1000,
+              commissionPercent: 10,
+              commissionValue: 100,
+              status: "in_progress",
+              estimatedDistance: 0,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn()}
+        updateFreight={updateFreight}
+        deleteFreight={vi.fn()}
+        startFreight={vi.fn()}
+        completeFreight={vi.fn().mockResolvedValue({ promotedFreightId: null })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revisar rota" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Salvar e tentar previsão" }),
+    );
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Previsão ainda em ajuste",
+        }),
+      );
+    });
+
+    expect(toastMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Rota revisada",
+      }),
+    );
   });
 
   it("mostra Retirada no card para perfil driver_owner", () => {

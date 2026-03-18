@@ -76,7 +76,8 @@ function buildRouteFailureDetails(params: {
   originQueryUsed?: string;
   destinationQueryUsed?: string;
 }): string {
-  const reason = params.reason || "Motivo não informado pela função de rota.";
+  const reason =
+    params.reason || "Não deu para liberar a previsão da rota agora.";
   const queryInfo =
     params.originQueryUsed && params.destinationQueryUsed
       ? ` Origem usada: ${params.originQueryUsed}. Destino usado: ${params.destinationQueryUsed}.`
@@ -1306,8 +1307,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         });
 
         toast({
-          title: "Falha ao calcular rota estimada",
-          description,
+          title: "Não deu para liberar a previsão da rota agora",
+          description: `${description} Você pode seguir lançando a viagem normalmente.`,
           variant: "destructive",
         });
 
@@ -1439,9 +1440,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         Freight,
         "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance"
       >,
-      options?: { forceRouteRefresh?: boolean },
-    ) => {
-      if (!user) return;
+      options?: { forceRouteRefresh?: boolean; suppressSuccessToast?: boolean },
+    ): Promise<FreightUpdateResult> => {
+      if (!user) {
+        return {
+          status: "blocked",
+          userMessage: "Faça login novamente para revisar este frete.",
+        };
+      }
 
       const kmValidation = validatePositiveNumber(
         f.kmInitial,
@@ -1466,7 +1472,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           grossValidation.message ||
           percentValidation.message;
         showActionError("Não foi possível salvar agora", message);
-        return;
+        return {
+          status: "blocked",
+          userMessage: message || "Não foi possível salvar agora.",
+        };
       }
 
       const trip = data.trips.find((t) => t.id === tripId);
@@ -1534,12 +1543,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
           });
 
-          toast({
-            title: "Rota não atualizada",
-            description: `Não foi possível validar a nova origem/destino. O frete manteve os dados anteriores. ${description}`,
-            variant: "destructive",
-          });
-
           console.error("Falha no diagnóstico de rota ao editar frete", {
             tripId,
             freightId,
@@ -1550,7 +1553,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
           });
 
-          return;
+          if (routeChanged) {
+            const userMessage = `Não deu para liberar a previsão da rota agora. ${description}`;
+            if (!options?.suppressSuccessToast) {
+              toast({
+                title: "Rota não atualizada",
+                description: `${userMessage} Revise origem e destino para tentar novamente.`,
+                variant: "destructive",
+              });
+            }
+
+            return { status: "blocked", userMessage };
+          }
+
+          await supabase
+            .from("freights")
+            .update({
+              origin: f.origin,
+              destination: f.destination,
+              km_initial: f.kmInitial,
+              gross_value: f.grossValue,
+              commission_percent: f.commissionPercent,
+              commission_value: commissionValue,
+              estimated_distance: nextEstimatedDistance,
+            })
+            .eq("id", freightId);
+          await recalculateTripEstimatedDistance(tripId);
+          if (vehicleId) {
+            await recalculateVehicleKm(vehicleId);
+          }
+          await fetchData();
+
+          return {
+            status: "saved_without_route",
+            userMessage: `Origem e destino foram confirmados, mas a previsão da rota ainda não foi liberada. ${description} Você pode seguir lançando a viagem normalmente.`,
+          };
         }
 
         nextEstimatedDistance = estimatedDistance;
@@ -1573,7 +1610,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         await recalculateVehicleKm(vehicleId);
       }
       await fetchData();
-      showActionSuccess("Frete atualizado");
+
+      if (!options?.suppressSuccessToast) {
+        showActionSuccess("Frete atualizado");
+      }
+
+      return {
+        status: shouldRefreshRoute ? "route_refreshed" : "updated",
+      };
     },
     [user, data.trips, fetchData, recalculateTripEstimatedDistance],
   );

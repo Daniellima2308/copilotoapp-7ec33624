@@ -405,7 +405,7 @@ describe("AppContext route cache flows", () => {
       expect.objectContaining({
         title: "Rota não atualizada",
         description: expect.stringContaining(
-          "O frete manteve os dados anteriores",
+          "Não deu para liberar a previsão da rota agora",
         ),
         variant: "destructive",
       }),

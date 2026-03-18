@@ -288,7 +288,7 @@ export function FreightTab({
 
     try {
       setIsSavingRouteReview(true);
-      await updateFreight(
+      const result = await updateFreight(
         trip.id,
         routeReviewFreight.id,
         {
@@ -299,21 +299,43 @@ export function FreightTab({
           commissionPercent: routeReviewFreight.commissionPercent,
           createdAt: routeReviewFreight.createdAt,
         },
-        { forceRouteRefresh: true },
+        { forceRouteRefresh: true, suppressSuccessToast: true },
       );
 
-      toast({
-        title: "Rota revisada",
-        description:
-          "Salvamos origem e destino de novo para tentar liberar a previsão deste trecho.",
-      });
-      setRouteReviewFreight(null);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Tenta novamente.";
+      if (result.status === "route_refreshed") {
+        toast({
+          title: "Previsão liberada",
+          description:
+            "Origem e destino foram revisados e a rota deste trecho já voltou a mostrar previsão.",
+        });
+        setRouteReviewFreight(null);
+        return;
+      }
+
+      if (result.status === "saved_without_route") {
+        toast({
+          title: "Previsão ainda em ajuste",
+          description:
+            result.userMessage ||
+            "Você pode seguir lançando a viagem normalmente e revisar origem e destino para tentar novamente.",
+        });
+        setRouteReviewFreight(null);
+        return;
+      }
+
       toast({
         title: "Não foi possível revisar a rota agora",
-        description: message,
+        description:
+          result.userMessage ||
+          "Revise origem e destino para tentar novamente.",
+        variant: "destructive",
+      });
+    } catch (error) {
+      console.error("Falha inesperada ao revisar rota do frete", error);
+      toast({
+        title: "Não foi possível revisar a rota agora",
+        description:
+          "Não deu para liberar a previsão da rota agora. Você pode seguir lançando a viagem normalmente e tentar novamente depois.",
         variant: "destructive",
       });
     } finally {

@@ -39,6 +39,15 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, de
 
   return (
     <div className="space-y-2">
+      {trip.expenses.length === 0 && (
+        <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
+          <p className="text-sm font-semibold text-foreground">Nenhuma despesa lançada por enquanto.</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Pedágio, diária e outros custos entram aqui. Se ainda não teve gasto, tudo certo — lance só quando acontecer.
+          </p>
+        </div>
+      )}
+
       {trip.expenses.map((e: Expense) => (
         <div key={e.id} className="gradient-card rounded-lg p-3 flex items-center justify-between">
           <div>

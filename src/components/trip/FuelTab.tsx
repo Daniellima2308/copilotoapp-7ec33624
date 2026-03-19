@@ -5,6 +5,7 @@ import { Fuel, Droplets, Loader2, Pencil, Trash2, Plus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ReceiptUpload } from "@/components/ReceiptUpload";
+import { DeleteConfirmDialog } from "@/components/trip/DeleteConfirmDialog";
 
 interface FuelTabProps {
   trip: Trip;
@@ -88,6 +89,8 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [submittingKey, setSubmittingKey] = useState<string | null>(null);
+  const [fuelingToDelete, setFuelingToDelete] = useState<Fueling | null>(null);
+  const [isDeletingFueling, setIsDeletingFueling] = useState(false);
 
   const handleAdd = async (data: Omit<Fueling, "id" | "tripId" | "pricePerLiter" | "average">) => {
     try {
@@ -109,7 +112,20 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
     }
   };
 
+  const handleDeleteFueling = async () => {
+    if (!fuelingToDelete || isDeletingFueling) return;
+
+    try {
+      setIsDeletingFueling(true);
+      await deleteFueling(trip.id, fuelingToDelete.id);
+      setFuelingToDelete(null);
+    } finally {
+      setIsDeletingFueling(false);
+    }
+  };
+
   return (
+    <>
     <div className="space-y-2">
       {trip.fuelings.length === 0 && (
         <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
@@ -147,7 +163,13 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return (
                           <p className="text-xs font-semibold text-profit flex items-center gap-1">
                             Média: {formatNumber(f.average)} km/l
-                            <span title="Média calculada com base no último abastecimento do veículo" className="cursor-help">ℹ️</span>
+                            <span
+                              title="Média calculada com base no último abastecimento do veículo"
+                              className="cursor-help text-muted-foreground"
+                              aria-label="Informação sobre a média"
+                            >
+                              Info
+                            </span>
                           </p>
                         );
                       }
@@ -163,7 +185,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
                       }
                       if (!isFullTank) {
-                        return <p className="text-xs italic text-warning">Média ainda não disponível</p>;
+                        return <p className="text-xs text-warning">Média disponível após um abastecimento completo.</p>;
                       }
                       return null;
                     })()}
@@ -176,7 +198,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                       <button onClick={() => setExpandedId(isExpanded ? null : f.id)} className="p-1">
                         <Pencil className={`w-3.5 h-3.5 transition-colors ${isExpanded ? "text-primary" : "text-muted-foreground hover:text-foreground"}`} />
                       </button>
-                      <button onClick={() => deleteFueling(trip.id, f.id)} className="p-1"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
+                      <button onClick={() => setFuelingToDelete(f)} className="p-1" aria-label="Excluir abastecimento"><Trash2 className="w-3.5 h-3.5 text-expense" /></button>
                     </>
                   )}
                 </div>
@@ -184,7 +206,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
               {isProrated && (
                 <div className="mt-2 px-2 py-1.5 rounded-md bg-accent/50 border border-border/50">
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    💡 Despesa rateada proporcionalmente. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
+                    Valor rateado proporcionalmente. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
                   </p>
                 </div>
               )}
@@ -212,5 +234,16 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
         </button>
       ))}
     </div>
+    <DeleteConfirmDialog
+      open={!!fuelingToDelete}
+      onOpenChange={(open) => {
+        if (!open && !isDeletingFueling) setFuelingToDelete(null);
+      }}
+      onConfirm={handleDeleteFueling}
+      title="Excluir abastecimento?"
+      description="Essa ação remove este abastecimento dos lançamentos."
+      isLoading={isDeletingFueling}
+    />
+    </>
   );
 }

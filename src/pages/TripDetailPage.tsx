@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Trip } from "@/types";
 import { getCurrentFreight } from "@/lib/freightStatus";
+import { DeleteConfirmDialog } from "@/components/trip/DeleteConfirmDialog";
 
 type Tab = "freights" | "fuel" | "expenses";
 type InfoState = "LANÇADO" | "ATUAL" | "PREVISTO";
@@ -190,6 +191,7 @@ const TripDetailPage = () => {
     updateFueling,
     deleteFueling,
     addExpense,
+    updateExpense,
     deleteExpense,
   } = useApp();
   const trip = data.trips.find((t) => t.id === id);
@@ -200,6 +202,7 @@ const TripDetailPage = () => {
   const [showTripReadingSheet, setShowTripReadingSheet] = useState(false);
   const [isFinishingTrip, setIsFinishingTrip] = useState(false);
   const [isDeletingTrip, setIsDeletingTrip] = useState(false);
+  const [showDeleteTripDialog, setShowDeleteTripDialog] = useState(false);
 
   const commissionsByFreight = useMemo(
     () =>
@@ -294,6 +297,18 @@ const TripDetailPage = () => {
     hasEstimatedKm,
     activeFreight,
   );
+
+  const handleDeleteTrip = async () => {
+    if (isDeletingTrip) return;
+
+    try {
+      setIsDeletingTrip(true);
+      await deleteTrip(trip.id);
+      navigate("/");
+    } finally {
+      setIsDeletingTrip(false);
+    }
+  };
   const tripLabel = vehicle
     ? `${vehicle.brand} ${vehicle.model}`
     : "Viagem em aberto";
@@ -493,16 +508,7 @@ const TripDetailPage = () => {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={async () => {
-                          if (!confirm("Excluir viagem?")) return;
-                          try {
-                            setIsDeletingTrip(true);
-                            await deleteTrip(trip.id);
-                            navigate("/");
-                          } finally {
-                            setIsDeletingTrip(false);
-                          }
-                        }}
+                        onClick={() => setShowDeleteTripDialog(true)}
                         className="gap-2 text-expense focus:text-expense"
                       >
                         {isDeletingTrip ? (
@@ -1034,6 +1040,7 @@ const TripDetailPage = () => {
             showForm={showForm}
             setShowForm={setShowForm}
             addExpense={addExpense}
+            updateExpense={updateExpense}
             deleteExpense={deleteExpense}
           />
         )}
@@ -1063,6 +1070,16 @@ const TripDetailPage = () => {
         }
         onConfirm={handleFinish}
         isSubmitting={isFinishingTrip}
+      />
+      <DeleteConfirmDialog
+        open={showDeleteTripDialog}
+        onOpenChange={(open) => {
+          if (!isDeletingTrip) setShowDeleteTripDialog(open);
+        }}
+        onConfirm={handleDeleteTrip}
+        title="Excluir viagem?"
+        description="Essa ação remove esta viagem e os lançamentos vinculados a ela."
+        isLoading={isDeletingTrip}
       />
     </div>
   );

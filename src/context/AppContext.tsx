@@ -55,6 +55,14 @@ function showActionSuccess(title: string, description?: string) {
   toast({ title, description });
 }
 
+function showActionNotice(title: string, description?: string) {
+  toast({
+    title,
+    description,
+    variant: "notice",
+  });
+}
+
 function showActionError(title: string, description?: string) {
   toast({
     title,
@@ -64,25 +72,19 @@ function showActionError(title: string, description?: string) {
 }
 
 function showOfflineSaved(title: string) {
-  toast({
+  showActionNotice(
     title,
-    description:
-      "Salvo no celular. Quando houver sinal, o app envia para a nuvem.",
-  });
+    "Salvo no celular. Quando houver sinal, o app envia para a nuvem.",
+  );
 }
 
 function buildRouteFailureDetails(params: {
   reason: string | null;
-  originQueryUsed?: string;
-  destinationQueryUsed?: string;
 }): string {
-  const reason =
-    params.reason || "Não deu para liberar a previsão da rota agora.";
-  const queryInfo =
-    params.originQueryUsed && params.destinationQueryUsed
-      ? ` Origem usada: ${params.originQueryUsed}. Destino usado: ${params.destinationQueryUsed}.`
-      : "";
-  return `${reason}${queryInfo}`;
+  return (
+    params.reason ||
+    "A rota foi salva, mas a previsão ainda não foi liberada."
+  );
 }
 
 function buildOfflineSyncRouteToast(
@@ -91,14 +93,15 @@ function buildOfflineSyncRouteToast(
   if (routeSyncFailures.length === 0) return null;
   if (routeSyncFailures.length === 1) {
     return {
-      title: "Frete sincronizado sem rota estimada",
-      description: routeSyncFailures[0],
+      title: "Sincronização parcial",
+      description:
+        "Um frete foi salvo, mas a previsão da rota ainda está em ajuste.",
     };
   }
 
   return {
-    title: "Alguns fretes sincronizaram sem rota estimada",
-    description: `${routeSyncFailures.length} rotas falharam no sync offline. Exemplo: ${routeSyncFailures[0]}`,
+    title: "Sincronização parcial",
+    description: `${routeSyncFailures.length} fretes foram salvos e ainda têm rota em ajuste.`,
   };
 }
 
@@ -892,23 +895,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const routeSyncToast = buildOfflineSyncRouteToast(routeSyncFailures);
       if (routeSyncToast) {
-        toast({
-          ...routeSyncToast,
-          variant: "destructive",
-        });
+        showActionNotice(routeSyncToast.title, routeSyncToast.description);
       }
 
       if (syncErrors === 0) {
         toast({
-          title: "Dados sincronizados!",
+          title: "Dados sincronizados",
           description: "Suas ações offline foram enviadas para a nuvem.",
         });
       } else {
-        toast({
-          title: "Sincronização parcial",
-          description: `${syncErrors} ação(ões) falharam. Serão tentadas novamente.`,
-          variant: "destructive",
-        });
+        showActionNotice(
+          "Sincronização parcial",
+          `${syncErrors} ação(ões) ainda dependem de nova tentativa.`,
+        );
       }
       await fetchData();
     };
@@ -1288,7 +1287,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             estimated_distance: 0,
           },
         });
-        showOfflineSaved("Frete lançado na viagem");
+        showOfflineSaved("Frete salvo");
         return;
       }
 
@@ -1302,15 +1301,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (distanceDiagnostic.distanceKm === null) {
         const description = buildRouteFailureDetails({
           reason: distanceDiagnostic.reason,
-          originQueryUsed: distanceDiagnostic.originQueryUsed,
-          destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
         });
 
-        toast({
-          title: "Não deu para liberar a previsão da rota agora",
-          description: `${description} Você pode seguir lançando a viagem normalmente.`,
-          variant: "destructive",
-        });
+        showActionNotice("Previsão ainda em ajuste", description);
 
         console.error("Falha no diagnóstico de rota ao criar frete", {
           tripId,
@@ -1346,7 +1339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       await recalculateTripEstimatedDistance(tripId);
       await fetchData();
-      showActionSuccess("Frete lançado na viagem");
+      showActionSuccess("Frete salvo");
     },
     [user, data.trips, fetchData, recalculateTripEstimatedDistance],
   );
@@ -1358,7 +1351,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           type: "deleteFreight",
           payload: { id: freightId },
         });
-        showOfflineSaved("Frete removido da viagem");
+        showOfflineSaved("Frete excluído");
         return;
       }
 
@@ -1387,7 +1380,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         .update({ status: "in_progress" })
         .eq("id", freightId);
       await fetchData();
-      showActionSuccess("Frete em andamento");
+      showActionSuccess("Frete iniciado");
     },
     [fetchData],
   );
@@ -1539,8 +1532,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         if (distanceDiagnostic.distanceKm === null) {
           const description = buildRouteFailureDetails({
             reason: distanceDiagnostic.reason,
-            originQueryUsed: distanceDiagnostic.originQueryUsed,
-            destinationQueryUsed: distanceDiagnostic.destinationQueryUsed,
           });
 
           console.error("Falha no diagnóstico de rota ao editar frete", {
@@ -1554,13 +1545,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           });
 
           if (routeChanged) {
-            const userMessage = `Não deu para liberar a previsão da rota agora. ${description}`;
+            const userMessage = `Rota salva, mas a previsão ainda não foi liberada. ${description}`;
             if (!options?.suppressSuccessToast) {
-              toast({
-                title: "Rota não atualizada",
-                description: `${userMessage} Revise origem e destino para tentar novamente.`,
-                variant: "destructive",
-              });
+              showActionNotice("Previsão ainda em ajuste", userMessage);
             }
 
             return { status: "blocked", userMessage };
@@ -1586,7 +1573,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
           return {
             status: "saved_without_route",
-            userMessage: `Origem e destino foram confirmados, mas a previsão da rota ainda não foi liberada. ${description} Você pode seguir lançando a viagem normalmente.`,
+            userMessage: `Rota salva, mas a previsão ainda não foi liberada. ${description}`,
           };
         }
 
@@ -1886,7 +1873,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         await recalculateVehicleKm(trip.vehicleId);
       }
       await fetchData();
-      showActionSuccess("Abastecimento salvo");
+      showActionSuccess("Abastecimento atualizado");
     },
     [user, data.trips, fetchData],
   );
@@ -1898,7 +1885,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           type: "deleteFueling",
           payload: { id: fuelingId },
         });
-        showOfflineSaved("Abastecimento removido");
+        showOfflineSaved("Abastecimento excluído");
         return;
       }
       const trip = data.trips.find((t) => t.id === tripId);
@@ -1945,7 +1932,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             receipt_url: e.receiptUrl || null,
           },
         });
-        showOfflineSaved("Despesa adicionada");
+        showOfflineSaved("Despesa salva");
         return;
       }
 
@@ -1959,7 +1946,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         receipt_url: e.receiptUrl || null,
       });
       await fetchData();
-      showActionSuccess("Despesa adicionada");
+      showActionSuccess("Despesa salva");
     },
     [user, fetchData],
   );
@@ -1971,7 +1958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           type: "deleteExpense",
           payload: { id: expenseId },
         });
-        showOfflineSaved("Despesa removida");
+        showOfflineSaved("Despesa excluída");
         return;
       }
       await supabase.from("expenses").delete().eq("id", expenseId);
@@ -2010,6 +1997,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         })
         .eq("id", expenseId);
       await fetchData();
+      showActionSuccess("Despesa atualizada");
     },
     [fetchData],
   );

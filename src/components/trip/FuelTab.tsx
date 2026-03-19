@@ -74,7 +74,7 @@ function FuelForm({
       )}
       <div className="flex items-center gap-3 py-1">
         <Switch id={`fullTank-${isEdit ? 'edit' : 'new'}`} checked={fullTank} onCheckedChange={setFullTank} disabled={isSubmitting} />
-        <Label htmlFor={`fullTank-${isEdit ? 'edit' : 'new'}`} className="text-sm font-medium cursor-pointer">Completou o tanque?</Label>
+        <Label htmlFor={`fullTank-${isEdit ? 'edit' : 'new'}`} className="text-sm font-medium cursor-pointer">Foi tanque cheio?</Label>
       </div>
       <ReceiptUpload value={receiptUrl} onChange={setReceiptUrl} />
       <div className="flex gap-2">
@@ -129,9 +129,9 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
     <div className="space-y-2">
       {trip.fuelings.length === 0 && (
         <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
-          <p className="text-sm font-semibold text-foreground">Nenhum abastecimento lançado ainda.</p>
+          <p className="text-sm font-semibold text-foreground">Ainda não há abastecimento lançado.</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Quando entrar o primeiro abastecimento, o Copiloto começa a montar média, custo e leitura mais fiel da viagem.
+            Quando entrar o primeiro abastecimento, o Copiloto começa a montar média, custo e uma leitura mais fiel da viagem.
           </p>
         </div>
       )}
@@ -164,7 +164,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                           <p className="text-xs font-semibold text-profit flex items-center gap-1">
                             Média: {formatNumber(f.average)} km/l
                             <span
-                              title="Média calculada com base no último abastecimento do veículo"
+                              title="Média calculada usando o último abastecimento completo do veículo"
                               className="cursor-help text-muted-foreground"
                               aria-label="Informação sobre a média"
                             >
@@ -177,7 +177,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return (
                           <div>
                             <p className="text-xs font-semibold text-info">Marco Zero</p>
-                            <p className="text-[10px] italic text-muted-foreground">A média ainda não está disponível. Ela aparece depois de abastecimentos suficientes.</p>
+                            <p className="text-[10px] italic text-muted-foreground">A média ainda não está disponível. Ela aparece depois de abastecimentos suficientes para comparar KM e litros.</p>
                           </div>
                         );
                       }
@@ -185,7 +185,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
                       }
                       if (!isFullTank) {
-                        return <p className="text-xs text-warning">Média disponível após um abastecimento completo.</p>;
+                        return <p className="text-xs text-warning">A média aparece depois de um abastecimento completo.</p>;
                       }
                       return null;
                     })()}
@@ -206,7 +206,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
               {isProrated && (
                 <div className="mt-2 px-2 py-1.5 rounded-md bg-accent/50 border border-border/50">
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    Valor rateado proporcionalmente. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
+                    Valor rateado entre viagens. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
                   </p>
                 </div>
               )}
@@ -230,7 +230,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
       ) : (
         <button onClick={() => setShowNewForm(true)}
           className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium min-h-[44px]">
-          <Plus className="w-4 h-4" /> Novo Abastecimento
+          <Plus className="w-4 h-4" /> Adicionar abastecimento
         </button>
       ))}
     </div>

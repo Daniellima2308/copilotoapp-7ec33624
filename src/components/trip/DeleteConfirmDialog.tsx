@@ -27,8 +27,8 @@ export function DeleteConfirmDialog({
   onConfirm,
   title,
   description,
-  warning = "Essa ação não pode ser desfeita.",
-  confirmLabel = "Confirmar exclusão",
+  warning = "Depois de excluir, esse lançamento sai da viagem e não dá para recuperar por aqui.",
+  confirmLabel = "Excluir agora",
   cancelLabel = "Cancelar",
   isLoading = false,
 }: DeleteConfirmDialogProps) {

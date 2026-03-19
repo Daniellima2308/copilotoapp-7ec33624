@@ -150,7 +150,7 @@ describe("TripDetailPage KM basis", () => {
       ).length,
     ).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /entender os números/i }));
+    fireEvent.click(screen.getByRole("button", { name: /entender esta leitura/i }));
 
     expect(
       await screen.findByText(/1\.138 km estimados só dos trechos em andamento\/concluídos/i),

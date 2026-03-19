@@ -554,7 +554,7 @@ const TripDetailPage = () => {
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
-                Toque em um status para entender.
+                Toque em um status para ver quando cada leitura aparece.
               </p>
             </div>
           </section>
@@ -566,8 +566,7 @@ const TripDetailPage = () => {
               Viagem até agora
             </h2>
             <p className="text-xs text-muted-foreground">
-              Aqui entram só os valores e lançamentos já feitos nesta viagem
-              aberta.
+              Aqui entram só os valores que já estão valendo na viagem, sem misturar o que ainda está planejado.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -941,8 +940,7 @@ const TripDetailPage = () => {
               {tripSituation.title}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Leitura curta do momento da viagem, sem repetir o restante da
-              tela.
+              Resumo rápido para entender o momento da viagem sem garimpar os cards.
             </p>
           </div>
           <div className="gradient-card rounded-xl border border-border/70 p-3.5">
@@ -963,7 +961,7 @@ const TripDetailPage = () => {
                 onClick={() => setShowTripReadingSheet(true)}
                 className="min-h-[44px] shrink-0 rounded-xl border border-border/70 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
-                Entender os números
+                Entender esta leitura
               </button>
             </div>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -984,7 +982,14 @@ const TripDetailPage = () => {
           </div>
         </section>
 
-        <div className="flex gap-1 bg-secondary rounded-lg p-1">
+        <div className="space-y-2">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Lançamentos da viagem</h2>
+            <p className="text-xs text-muted-foreground">
+              Alterne entre fretes, abastecimentos e despesas para revisar o que já entrou e o que ainda falta lançar.
+            </p>
+          </div>
+          <div className="flex gap-1 rounded-lg bg-secondary p-1">
           {(
             [
               ["freights", "Fretes", MapPin],
@@ -1007,6 +1012,7 @@ const TripDetailPage = () => {
               <Icon className="w-3.5 h-3.5" /> {label}
             </button>
           ))}
+          </div>
         </div>
 
         {tab === "freights" && (
@@ -1144,7 +1150,7 @@ function MetricCard({
   return (
     <button
       onClick={onClick}
-      className="gradient-card rounded-xl p-3 text-left min-h-[120px] border border-transparent hover:border-border/70 transition-colors"
+      className="gradient-card min-h-[128px] rounded-xl border border-transparent p-3 text-left transition-colors hover:border-border/70"
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1 text-muted-foreground">
@@ -1186,7 +1192,7 @@ function MetricDetailDialog({
 }) {
   return (
     <Dialog open={!!detail} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm rounded-xl">
+      <DialogContent className="max-w-sm rounded-2xl border-border/70">
         {detail && (
           <>
             <DialogHeader>
@@ -1239,8 +1245,7 @@ function TripReadingDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Como o app está lendo a viagem</DrawerTitle>
           <DrawerDescription>
-            Veja a diferença entre o que está acontecendo agora, o parcial da
-            operação e o total previsto.
+            Aqui você compara o frete que está rodando agora, o parcial já lançado e a projeção da viagem inteira.
           </DrawerDescription>
         </DrawerHeader>
         <div className="space-y-2 px-4 pb-6">

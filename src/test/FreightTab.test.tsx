@@ -175,9 +175,9 @@ describe("FreightTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Revisar rota" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar origem e destino" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Salvar e tentar previsão" }),
+      screen.getByRole("button", { name: "Salvar e tentar liberar previsão" }),
     );
 
     await waitFor(() => {
@@ -229,9 +229,9 @@ describe("FreightTab", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Revisar rota" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar origem e destino" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Salvar e tentar previsão" }),
+      screen.getByRole("button", { name: "Salvar e tentar liberar previsão" }),
     );
 
     await waitFor(() => {
@@ -319,10 +319,10 @@ describe("FreightTab", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Concluir/i }));
-    expect(screen.getByText("Concluir frete atual?")).toBeInTheDocument();
+    expect(screen.getByText("Concluir este frete?")).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Só concluir este frete" }),
+      screen.getByRole("button", { name: "Concluir e decidir depois" }),
     );
 
     await waitFor(() => {

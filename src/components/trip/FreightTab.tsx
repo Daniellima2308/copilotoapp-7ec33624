@@ -356,8 +356,8 @@ export function FreightTab({
   );
 
   const freightStatusCopy: Record<Freight["status"], string> = {
-    planned: "Trecho aguardando início.",
-    in_progress: "Trecho em andamento nesta viagem.",
+    planned: "Trecho salvo e aguardando início.",
+    in_progress: "Trecho rodando neste momento.",
     completed: "Trecho já concluído nesta viagem.",
   };
 
@@ -379,11 +379,10 @@ export function FreightTab({
         {trip.freights.length === 0 && (
           <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
             <p className="text-sm font-semibold text-foreground">
-              Ainda não tem frete nesta viagem.
+              Ainda não há frete nesta viagem.
             </p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Cadastre o primeiro trecho para começar a acompanhar bruto,
-              comissão, KM e progresso no hero.
+              Cadastre o primeiro trecho para liberar leitura de bruto, comissão, KM e progresso da viagem.
             </p>
           </div>
         )}
@@ -397,8 +396,8 @@ export function FreightTab({
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
               {hasPlannedFreight
-                ? "Toque em Iniciar no próximo trecho para voltar a acompanhar o andamento da viagem em tempo real."
-                : "Se os trechos já acabaram, você pode revisar os lançamentos e finalizar a viagem quando achar melhor."}
+                ? "Toque em Iniciar no próximo trecho para voltar a acompanhar progresso e previsão da viagem."
+                : "Se os trechos já acabaram, revise os lançamentos e finalize a viagem quando fizer sentido."}
             </p>
           </div>
         )}
@@ -485,19 +484,17 @@ export function FreightTab({
             {f.estimatedDistance <= 0 && (
               <div className="mt-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
                 <p className="text-xs font-semibold text-foreground">
-                  Sem previsão no momento
+                  Sem previsão de rota no momento
                 </p>
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                  Ainda não conseguimos estimar a distância deste trecho. Você
-                  pode seguir lançando a viagem normalmente e revisar origem e
-                  destino para tentar liberar a previsão.
+                  Ainda não conseguimos estimar a distância deste trecho. Você pode seguir lançando a viagem normalmente e revisar origem e destino para tentar liberar a previsão.
                 </p>
                 <button
                   type="button"
                   onClick={() => openRouteReviewDialog(f)}
                   className="mt-2 inline-flex min-h-[44px] items-center rounded-lg border border-border/70 px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-background"
                 >
-                  Revisar rota
+                  Revisar origem e destino
                 </button>
               </div>
             )}
@@ -652,7 +649,7 @@ export function FreightTab({
             onClick={() => setShowForm(true)}
             className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium min-h-[44px]"
           >
-            <Plus className="w-4 h-4" /> Novo Frete
+            <Plus className="w-4 h-4" /> Adicionar frete
           </button>
         ))}
 
@@ -664,7 +661,7 @@ export function FreightTab({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Concluir frete atual?</DialogTitle>
+            <DialogTitle>Concluir este frete?</DialogTitle>
             <DialogDescription>
               {finishingFreight
                 ? `Você vai encerrar o trecho ${finishingFreight.origin} → ${finishingFreight.destination}. Se houver outro frete planejado, dá para iniciar na sequência.`
@@ -700,7 +697,7 @@ export function FreightTab({
               disabled={isFinishingFreight}
               onClick={() => handleCompleteWithOption("complete_only")}
             >
-              Só concluir este frete
+              Concluir e decidir depois
             </button>
           </DialogFooter>
         </DialogContent>
@@ -716,7 +713,7 @@ export function FreightTab({
           <DialogHeader>
             <DialogTitle>Editar KM inicial</DialogTitle>
             <DialogDescription>
-              Ajuste o KM deste frete. O progresso da viagem será recalculado.
+              Ajuste o KM inicial deste trecho. O progresso e as leituras da viagem serão recalculados.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -762,10 +759,9 @@ export function FreightTab({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Revisar rota deste frete</DialogTitle>
+            <DialogTitle>Revisar origem e destino</DialogTitle>
             <DialogDescription>
-              Confira origem e destino. Ao salvar de novo, o app tenta liberar a
-              previsão deste trecho.
+              Confira origem e destino. Ao salvar de novo, o app tenta liberar a previsão deste trecho.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -784,8 +780,7 @@ export function FreightTab({
               />
             </div>
             <div className="rounded-lg bg-secondary/50 p-3 text-xs leading-relaxed text-muted-foreground">
-              Você pode continuar usando a viagem normalmente. Esta revisão só
-              tenta destravar a previsão da rota para este trecho.
+              Você pode continuar usando a viagem normalmente. Esta revisão só tenta destravar a previsão de rota deste trecho.
             </div>
             <div className="flex gap-2">
               <button
@@ -802,7 +797,7 @@ export function FreightTab({
                     <Loader2 className="w-4 h-4 animate-spin" /> Salvando...
                   </>
                 ) : (
-                  "Salvar e tentar previsão"
+                  "Salvar e tentar liberar previsão"
                 )}
               </button>
               <button

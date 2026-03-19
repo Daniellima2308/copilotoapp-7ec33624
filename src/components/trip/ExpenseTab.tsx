@@ -117,7 +117,7 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, up
     <div className="space-y-2">
       {trip.expenses.length === 0 && (
         <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
-          <p className="text-sm font-semibold text-foreground">Nenhuma despesa lançada por enquanto.</p>
+          <p className="text-sm font-semibold text-foreground">Ainda não há despesa lançada.</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             Pedágio, diária e outros custos entram aqui. Se ainda não teve gasto, tudo certo — lance só quando acontecer.
           </p>
@@ -159,7 +159,7 @@ export function ExpenseTab({ trip, isOpen, showForm, setShowForm, addExpense, up
       ) : (
         <button onClick={() => setShowForm(true)}
           className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium min-h-[44px]">
-          <Plus className="w-4 h-4" /> Nova Despesa
+          <Plus className="w-4 h-4" /> Adicionar despesa
         </button>
       ))}
     </div>

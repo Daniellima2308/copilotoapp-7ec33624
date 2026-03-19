@@ -94,22 +94,22 @@ export function TripHeroCard({ trip, vehicle }: TripHeroCardProps) {
             </>
           ) : (
             <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5">
-              <p className="text-xs font-semibold text-foreground">Sem rota estimada por enquanto.</p>
+              <p className="text-xs font-semibold text-foreground">Previsão de rota indisponível por enquanto.</p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                Dá para seguir lançando a viagem normalmente. Revise origem e destino deste frete para tentar liberar a previsão.
+                Você pode continuar lançando a viagem normalmente. Revise origem e destino deste frete para tentar liberar a previsão.
               </p>
             </div>
           )}
         </div>
       ) : (
         <div className="rounded-lg bg-secondary/50 p-3">
-          <p className="text-xs font-semibold text-foreground">Nenhum frete em andamento agora.</p>
+          <p className="text-xs font-semibold text-foreground">Nenhum frete em andamento neste momento.</p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             {hasPlannedFreight
-              ? "Tem frete aguardando início. Toque em Iniciar no próximo trecho para voltar a acompanhar progresso e chegada."
+              ? "Tem frete aguardando início. Toque em Iniciar no próximo trecho para voltar a acompanhar progresso e previsão de chegada."
               : hasAnyFreight
-                ? "Os fretes lançados já ficaram para trás. Se a operação acabou, a viagem pode ser finalizada quando você quiser."
-                : "Ainda não tem frete lançado nesta viagem. Cadastre o primeiro trecho para liberar progresso e previsão de chegada no painel da viagem."}
+                ? "Os fretes lançados já ficaram para trás. Se a operação encerrou, vale revisar os números e finalizar a viagem quando quiser."
+                : "Ainda não tem frete lançado nesta viagem. Cadastre o primeiro trecho para liberar progresso, KM previsto e previsão de chegada no painel."}
           </p>
         </div>
       )}

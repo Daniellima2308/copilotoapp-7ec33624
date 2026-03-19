@@ -29,6 +29,7 @@ import {
   shouldShowCommissionFieldByDefault,
   shouldShowCommissionToggle,
 } from "@/lib/vehicleOperation";
+import { DeleteConfirmDialog } from "@/components/trip/DeleteConfirmDialog";
 
 interface FreightTabProps {
   trip: Trip;
@@ -50,7 +51,7 @@ interface FreightTabProps {
       Freight,
       "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance"
     >,
-    options?: { forceRouteRefresh?: boolean },
+    options?: { forceRouteRefresh?: boolean; suppressSuccessToast?: boolean },
   ) => Promise<void>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
   startFreight: (tripId: string, freightId: string) => Promise<void>;
@@ -98,6 +99,8 @@ export function FreightTab({
   const [isSavingKm, setIsSavingKm] = useState(false);
   const [isSavingRouteReview, setIsSavingRouteReview] = useState(false);
   const [pendingStartId, setPendingStartId] = useState<string | null>(null);
+  const [freightToDelete, setFreightToDelete] = useState<Freight | null>(null);
+  const [isDeletingFreight, setIsDeletingFreight] = useState(false);
   const { toast } = useToast();
 
   const defaultCommission = useMemo(
@@ -350,37 +353,56 @@ export function FreightTab({
     (freight) => freight.status === "in_progress",
   );
 
+  const freightStatusCopy: Record<Freight["status"], string> = {
+    planned: "Trecho aguardando início.",
+    in_progress: "Trecho em andamento nesta viagem.",
+    completed: "Trecho já concluído nesta viagem.",
+  };
+
+  const handleDeleteFreight = async () => {
+    if (!freightToDelete || isDeletingFreight) return;
+
+    try {
+      setIsDeletingFreight(true);
+      await deleteFreight(trip.id, freightToDelete.id);
+      setFreightToDelete(null);
+    } finally {
+      setIsDeletingFreight(false);
+    }
+  };
+
   return (
-    <div className="space-y-2">
-      {trip.freights.length === 0 && (
-        <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
-          <p className="text-sm font-semibold text-foreground">
-            Ainda não tem frete nesta viagem.
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Cadastre o primeiro trecho para começar a acompanhar bruto,
-            comissão, KM e progresso no hero.
-          </p>
-        </div>
-      )}
+    <>
+      <div className="space-y-2">
+        {trip.freights.length === 0 && (
+          <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
+            <p className="text-sm font-semibold text-foreground">
+              Ainda não tem frete nesta viagem.
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Cadastre o primeiro trecho para começar a acompanhar bruto,
+              comissão, KM e progresso no hero.
+            </p>
+          </div>
+        )}
 
-      {trip.freights.length > 0 && !hasInProgressFreight && (
-        <div className="rounded-xl border border-border/70 bg-secondary/35 p-3">
-          <p className="text-xs font-semibold text-foreground">
-            {hasPlannedFreight
-              ? "Tem frete aguardando início."
-              : "Nenhum frete está rodando agora."}
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            {hasPlannedFreight
-              ? "Toque em Iniciar no próximo trecho para voltar a acompanhar o andamento da viagem em tempo real."
-              : "Se os trechos já acabaram, você pode revisar os lançamentos e finalizar a viagem quando achar melhor."}
-          </p>
-        </div>
-      )}
+        {trip.freights.length > 0 && !hasInProgressFreight && (
+          <div className="rounded-xl border border-border/70 bg-secondary/35 p-3">
+            <p className="text-xs font-semibold text-foreground">
+              {hasPlannedFreight
+                ? "Tem frete aguardando início."
+                : "Nenhum frete está rodando agora."}
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {hasPlannedFreight
+                ? "Toque em Iniciar no próximo trecho para voltar a acompanhar o andamento da viagem em tempo real."
+                : "Se os trechos já acabaram, você pode revisar os lançamentos e finalizar a viagem quando achar melhor."}
+            </p>
+          </div>
+        )}
 
-      {trip.freights.map((f: Freight) => (
-        <div key={f.id} className="gradient-card rounded-xl p-3 space-y-2">
+        {trip.freights.map((f: Freight) => (
+          <div key={f.id} className="gradient-card rounded-xl p-3 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
               <p className="text-sm font-semibold leading-tight flex items-center gap-1.5">
@@ -396,14 +418,15 @@ export function FreightTab({
                   {FREIGHT_STATUS_LABELS[f.status]}
                 </span>
                 <p className="text-xs text-muted-foreground">
-                  Trecho cadastrado neste frete.
+                  {freightStatusCopy[f.status]}
                 </p>
               </div>
             </div>
             {isOpen && (
               <button
-                onClick={() => deleteFreight(trip.id, f.id)}
+                onClick={() => setFreightToDelete(f)}
                 className="p-1"
+                aria-label="Excluir frete"
               >
                 <Trash2 className="w-3.5 h-3.5 text-expense" />
               </button>
@@ -504,8 +527,8 @@ export function FreightTab({
               )}
             </div>
           )}
-        </div>
-      ))}
+          </div>
+        ))}
       {isOpen &&
         (showForm ? (
           <form
@@ -791,6 +814,18 @@ export function FreightTab({
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+
+      <DeleteConfirmDialog
+        open={!!freightToDelete}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingFreight) setFreightToDelete(null);
+        }}
+        onConfirm={handleDeleteFreight}
+        title="Excluir frete?"
+        description="Essa ação remove este frete da viagem."
+        isLoading={isDeletingFreight}
+      />
+    </>
   );
 }

@@ -11,7 +11,8 @@ import {
   getTripCostPerKmToDate,
   getTripProfitPerKm,
   getTripProfitPerKmToDate,
-  getEffectiveKm,
+  getTripKmBasisToDate,
+  getTripKmBasisTotal,
   getTripTotalCommissions,
   getTripTotalCommissionsToDate,
   getTripTotalExpenses,
@@ -235,19 +236,26 @@ const TripDetailPage = () => {
   );
   const otherExpenses = trip.expenses.reduce((sum, e) => sum + e.value, 0);
 
-  const effectiveKm = getEffectiveKm(trip);
-  const hasRealKm = !effectiveKm.isEstimate && effectiveKm.km > 0;
-  const hasEstimatedKm = effectiveKm.isEstimate && effectiveKm.km > 0;
-  const costKmTotal = effectiveKm.km > 0 ? getTripCostPerKm(trip) : 0;
-  const costKmToDate = effectiveKm.km > 0 ? getTripCostPerKmToDate(trip) : 0;
-  const profitKmTotal = effectiveKm.km > 0 ? getTripProfitPerKm(trip) : 0;
+  const kmBasisToDate = getTripKmBasisToDate(trip);
+  const kmBasisTotal = getTripKmBasisTotal(trip);
+  const currentKmBasis = isOpen ? kmBasisToDate : kmBasisTotal;
+  const hasRealKm = currentKmBasis.source === "actual" && currentKmBasis.km > 0;
+  const hasEstimatedKm =
+    currentKmBasis.source === "estimated" && currentKmBasis.km > 0;
+  const costKmTotal = kmBasisTotal.km > 0 ? getTripCostPerKm(trip) : 0;
+  const costKmToDate = kmBasisToDate.km > 0 ? getTripCostPerKmToDate(trip) : 0;
+  const profitKmTotal = kmBasisTotal.km > 0 ? getTripProfitPerKm(trip) : 0;
   const profitKmToDate =
-    effectiveKm.km > 0 ? getTripProfitPerKmToDate(trip) : 0;
+    kmBasisToDate.km > 0 ? getTripProfitPerKmToDate(trip) : 0;
 
   const kmLabel = hasRealKm
-    ? "KM rodado"
+    ? isOpen
+      ? "KM até agora"
+      : "KM rodado"
     : hasEstimatedKm
-      ? "KM previsto"
+      ? isOpen
+        ? "KM considerado até agora"
+        : "KM previsto"
       : "KM da viagem";
   const kmState: InfoState = hasRealKm
     ? "LANÇADO"
@@ -255,9 +263,13 @@ const TripDetailPage = () => {
       ? "PREVISTO"
       : "ATUAL";
   const kmText = hasRealKm
-    ? "Trecho rodado de verdade."
+    ? isOpen
+      ? "Trecho já rodado na operação atual."
+      : "Trecho rodado de verdade."
     : hasEstimatedKm
-      ? "Distância da rota cadastrada."
+      ? isOpen
+        ? "Conta feita com a rota dos trechos já em andamento/concluídos."
+        : "Distância da rota cadastrada."
       : "Aguardando dados da viagem.";
 
   const profitKmLabel = isOpen
@@ -362,13 +374,25 @@ const TripDetailPage = () => {
       label: "Viagem até agora",
       value: formatCurrency(netToDate),
       description:
-        "Mostra a leitura parcial com o que já foi lançado e já está valendo na operação.",
+        `Mostra a leitura parcial com o que já foi lançado e já está valendo na operação. Base de KM: ${
+          kmBasisToDate.source === "actual"
+            ? `${formatNumber(kmBasisToDate.km)} km reais já rodados`
+            : kmBasisToDate.source === "estimated"
+              ? `${formatNumber(kmBasisToDate.km)} km estimados só dos trechos em andamento/concluídos`
+              : "sem KM suficiente no momento"
+        }.`,
     },
     {
       label: "Total da viagem",
       value: formatCurrency(netTotal),
       description:
-        "Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos.",
+        `Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos. Base de KM: ${
+          kmBasisTotal.source === "actual"
+            ? `${formatNumber(kmBasisTotal.km)} km reais`
+            : kmBasisTotal.source === "estimated"
+              ? `${formatNumber(kmBasisTotal.km)} km previstos da viagem inteira`
+              : "sem KM previsto suficiente"
+        }.`,
     },
   ];
 
@@ -713,7 +737,7 @@ const TripDetailPage = () => {
               label={kmLabel}
               state={kmState}
               value={
-                effectiveKm.km > 0 ? `${formatNumber(effectiveKm.km)} km` : "—"
+                currentKmBasis.km > 0 ? `${formatNumber(currentKmBasis.km)} km` : "—"
               }
               icon={<Route className="w-4 h-4" />}
               helperText={kmText}
@@ -721,13 +745,17 @@ const TripDetailPage = () => {
                 setActiveDetail({
                   title: kmLabel,
                   value:
-                    effectiveKm.km > 0
-                      ? `${formatNumber(effectiveKm.km)} km`
+                    currentKmBasis.km > 0
+                      ? `${formatNumber(currentKmBasis.km)} km`
                       : "—",
                   description: hasRealKm
-                    ? "Esse KM foi calculado com base no trecho já rodado."
+                    ? isOpen
+                      ? "Esse KM foi calculado só com checkpoints e lançamentos reais que já aconteceram na operação."
+                      : "Esse KM foi calculado com base no trecho já rodado."
                     : hasEstimatedKm
-                      ? "Esse KM foi calculado pela rota entre origem e destino."
+                      ? isOpen
+                        ? "Esse KM usa somente a rota estimada dos fretes em andamento ou concluídos. Fretes planejados ficaram fora dessa conta."
+                        : "Esse KM foi calculado pela rota entre origem e destino."
                       : "Ainda não temos KM suficiente para mostrar essa conta.",
                 })
               }
@@ -771,34 +799,36 @@ const TripDetailPage = () => {
                 hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"
               }
               value={
-                effectiveKm.km > 0
+                (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                   ? `R$ ${formatNumber(isOpen ? profitKmToDate : profitKmTotal)}`
                   : "—"
               }
               icon={<TrendingUp className="w-4 h-4" />}
               valueClass={
-                effectiveKm.km > 0 ? "text-profit" : "text-muted-foreground"
+                (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0 ? "text-profit" : "text-muted-foreground"
               }
               helperText={
                 hasRealKm
                   ? "Conta feita com o trecho rodado."
                   : hasEstimatedKm
-                    ? "Conta feita pela rota cadastrada."
+                    ? isOpen
+                      ? "Conta feita com a rota dos trechos já em andamento/concluídos."
+                      : "Conta feita pela rota cadastrada."
                     : "Aguardando KM da viagem."
               }
               onClick={() =>
                 setActiveDetail({
                   title: profitKmLabel,
                   value:
-                    effectiveKm.km > 0
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                       ? `R$ ${formatNumber(isOpen ? profitKmToDate : profitKmTotal)}`
                       : "—",
                   description:
-                    effectiveKm.km > 0
-                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}Como o Copiloto chegou nesse valor.`
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
+                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}${isOpen && kmBasisToDate.source === "estimated" ? "A base de KM considera só trechos operacionais, sem incluir fretes planejados. " : ""}Como o Copiloto chegou nesse valor.`
                       : "Aguardando KM da viagem.",
                   lines:
-                    effectiveKm.km > 0
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                       ? [
                           {
                             label: "Líquido usado",
@@ -808,12 +838,20 @@ const TripDetailPage = () => {
                           },
                           {
                             label: "KM usado",
-                            value: `${formatNumber(effectiveKm.km)} km`,
+                            value: `${formatNumber(isOpen ? kmBasisToDate.km : kmBasisTotal.km)} km`,
                           },
                           {
                             label: "Conta",
-                            value: `${formatCurrency(isOpen ? netToDate : netTotal)} ÷ ${formatNumber(effectiveKm.km)} km`,
+                            value: `${formatCurrency(isOpen ? netToDate : netTotal)} ÷ ${formatNumber(isOpen ? kmBasisToDate.km : kmBasisTotal.km)} km`,
                           },
+                          ...(isOpen && kmBasisToDate.source === "estimated"
+                            ? [
+                                {
+                                  label: "Base de KM",
+                                  value: "Rota dos trechos em andamento/concluídos",
+                                },
+                              ]
+                            : []),
                         ]
                       : undefined,
                 })
@@ -826,34 +864,36 @@ const TripDetailPage = () => {
                 hasRealKm ? "LANÇADO" : hasEstimatedKm ? "PREVISTO" : "ATUAL"
               }
               value={
-                effectiveKm.km > 0
+                (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                   ? `R$ ${formatNumber(isOpen ? costKmToDate : costKmTotal)}`
                   : "—"
               }
               icon={<TrendingDown className="w-4 h-4" />}
               valueClass={
-                effectiveKm.km > 0 ? "text-expense" : "text-muted-foreground"
+                (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0 ? "text-expense" : "text-muted-foreground"
               }
               helperText={
                 hasRealKm
                   ? "Conta feita com o trecho rodado."
                   : hasEstimatedKm
-                    ? "Conta feita pela rota cadastrada."
+                    ? isOpen
+                      ? "Conta feita com a rota dos trechos já em andamento/concluídos."
+                      : "Conta feita pela rota cadastrada."
                     : "Aguardando KM da viagem."
               }
               onClick={() =>
                 setActiveDetail({
                   title: costKmLabel,
                   value:
-                    effectiveKm.km > 0
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                       ? `R$ ${formatNumber(isOpen ? costKmToDate : costKmTotal)}`
                       : "—",
                   description:
-                    effectiveKm.km > 0
-                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}Aqui entram comissão, abastecimentos e despesas divididos pelo KM usado.`
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
+                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}${isOpen && kmBasisToDate.source === "estimated" ? "O KM usado aqui vem apenas da rota dos trechos operacionais. " : ""}Aqui entram comissão, abastecimentos e despesas divididos pelo KM usado.`
                       : "Aguardando KM da viagem.",
                   lines:
-                    effectiveKm.km > 0
+                    (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
                       ? [
                           {
                             label: "Comissão usada",
@@ -871,8 +911,16 @@ const TripDetailPage = () => {
                           },
                           {
                             label: "KM usado",
-                            value: `${formatNumber(effectiveKm.km)} km`,
+                            value: `${formatNumber(isOpen ? kmBasisToDate.km : kmBasisTotal.km)} km`,
                           },
+                          ...(isOpen && kmBasisToDate.source === "estimated"
+                            ? [
+                                {
+                                  label: "Base de KM",
+                                  value: "Rota dos trechos em andamento/concluídos",
+                                },
+                              ]
+                            : []),
                         ]
                       : undefined,
                 })

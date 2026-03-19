@@ -404,11 +404,11 @@ describe("AppContext route cache flows", () => {
     ).toBeUndefined();
     expect(sharedMocks.toastMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Rota não atualizada",
+        title: "Previsão ainda em ajuste",
         description: expect.stringContaining(
-          "Não deu para liberar a previsão da rota agora",
+          "Rota salva, mas a previsão ainda não foi liberada",
         ),
-        variant: "destructive",
+        variant: "notice",
       }),
     );
     unmount();
@@ -617,16 +617,16 @@ describe("AppContext route cache flows", () => {
 
     expect(sharedMocks.toastMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Alguns fretes sincronizaram sem rota estimada",
+        title: "Sincronização parcial",
         description: expect.stringContaining(
-          "2 rotas falharam no sync offline",
+          "2 fretes foram salvos e ainda têm rota em ajuste",
         ),
-        variant: "destructive",
+        variant: "notice",
       }),
     );
     expect(sharedMocks.toastMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Dados sincronizados!",
+        title: "Dados sincronizados",
       }),
     );
     expect(offlineState.queue).toHaveLength(0);

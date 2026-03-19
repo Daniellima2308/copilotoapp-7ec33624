@@ -226,7 +226,8 @@ export function FreightTab({
       } else {
         toast({
           title: "Frete concluído",
-          description: "Próximo frete ficou aguardando início.",
+          description: "Próximo trecho ficou aguardando início.",
+          variant: "notice",
         });
       }
     } catch (error) {
@@ -320,7 +321,8 @@ export function FreightTab({
           title: "Previsão ainda em ajuste",
           description:
             result.userMessage ||
-            "Você pode seguir lançando a viagem normalmente e revisar origem e destino para tentar novamente.",
+            "Rota salva, mas a previsão ainda não foi liberada.",
+          variant: "notice",
         });
         setRouteReviewFreight(null);
         return;

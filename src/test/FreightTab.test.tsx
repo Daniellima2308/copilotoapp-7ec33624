@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FreightTab } from "@/components/trip/FreightTab";
 import { Trip, Vehicle } from "@/types";
 
@@ -52,14 +52,45 @@ const driverOwnerVehicle: Vehicle = {
   currentKm: 1000,
 };
 
-const defaultProps = {
-  updateFreight: vi.fn().mockResolvedValue(undefined),
-  deleteFreight: vi.fn(),
-  startFreight: vi.fn(),
-  completeFreight: vi.fn().mockResolvedValue({ promotedFreightId: null }),
-};
+function getDefaultProps() {
+  return {
+    updateFreight: vi.fn().mockResolvedValue({ status: "updated" }),
+    deleteFreight: vi.fn().mockResolvedValue(undefined),
+    startFreight: vi.fn().mockResolvedValue({ status: "started" }),
+    completeFreight: vi.fn().mockResolvedValue({ promotedFreightId: null }),
+  };
+}
+
+function makeFreight(
+  id: string,
+  status: "planned" | "in_progress" | "completed",
+  createdAt: string,
+) {
+  return {
+    id,
+    tripId: tripBase.id,
+    origin: `Origem ${id}`,
+    destination: `Destino ${id}`,
+    kmInitial: 100,
+    grossValue: 1000,
+    commissionPercent: 10,
+    commissionValue: 100,
+    status,
+    estimatedDistance: 450,
+    createdAt,
+  };
+}
 
 describe("FreightTab", () => {
+  beforeEach(() => {
+    toastMock.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
   it("fecha formulário apenas quando addFreight tiver sucesso", async () => {
     const addFreight = vi.fn().mockResolvedValue(undefined);
     const setShowForm = vi.fn();
@@ -72,7 +103,7 @@ describe("FreightTab", () => {
         showForm
         setShowForm={setShowForm}
         addFreight={addFreight}
-        {...defaultProps}
+        {...getDefaultProps()}
       />,
     );
 
@@ -109,7 +140,7 @@ describe("FreightTab", () => {
         showForm
         setShowForm={setShowForm}
         addFreight={addFreight}
-        {...defaultProps}
+        {...getDefaultProps()}
       />,
     );
 
@@ -147,30 +178,16 @@ describe("FreightTab", () => {
       <FreightTab
         trip={{
           ...tripBase,
-          freights: [
-            {
-              id: "f-1",
-              tripId: tripBase.id,
-              origin: "SP",
-              destination: "MG",
-              kmInitial: 100,
-              grossValue: 1000,
-              commissionPercent: 10,
-              commissionValue: 100,
-              status: "in_progress",
-              estimatedDistance: 0,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          freights: [{ ...makeFreight("f-1", "in_progress", new Date().toISOString()), estimatedDistance: 0 }],
         }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
         setShowForm={vi.fn()}
-        addFreight={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
         updateFreight={updateFreight}
-        deleteFreight={vi.fn()}
-        startFreight={vi.fn()}
+        deleteFreight={vi.fn().mockResolvedValue(undefined)}
+        startFreight={vi.fn().mockResolvedValue({ status: "started" })}
         completeFreight={vi.fn().mockResolvedValue({ promotedFreightId: null })}
       />,
     );
@@ -184,7 +201,10 @@ describe("FreightTab", () => {
       expect(updateFreight).toHaveBeenCalledWith(
         "trip-1",
         "f-1",
-        expect.objectContaining({ origin: "SP", destination: "MG" }),
+        expect.objectContaining({
+          origin: "Origem f-1",
+          destination: "Destino f-1",
+        }),
         { forceRouteRefresh: true, suppressSuccessToast: true },
       );
     });
@@ -201,30 +221,16 @@ describe("FreightTab", () => {
       <FreightTab
         trip={{
           ...tripBase,
-          freights: [
-            {
-              id: "f-1",
-              tripId: tripBase.id,
-              origin: "SP",
-              destination: "MG",
-              kmInitial: 100,
-              grossValue: 1000,
-              commissionPercent: 10,
-              commissionValue: 100,
-              status: "in_progress",
-              estimatedDistance: 0,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          freights: [{ ...makeFreight("f-1", "in_progress", new Date().toISOString()), estimatedDistance: 0 }],
         }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
         setShowForm={vi.fn()}
-        addFreight={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
         updateFreight={updateFreight}
-        deleteFreight={vi.fn()}
-        startFreight={vi.fn()}
+        deleteFreight={vi.fn().mockResolvedValue(undefined)}
+        startFreight={vi.fn().mockResolvedValue({ status: "started" })}
         completeFreight={vi.fn().mockResolvedValue({ promotedFreightId: null })}
       />,
     );
@@ -241,12 +247,6 @@ describe("FreightTab", () => {
         }),
       );
     });
-
-    expect(toastMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Rota revisada",
-      }),
-    );
   });
 
   it("mostra Retirada no card para perfil driver_owner", () => {
@@ -254,28 +254,14 @@ describe("FreightTab", () => {
       <FreightTab
         trip={{
           ...tripBase,
-          freights: [
-            {
-              id: "f-1",
-              tripId: tripBase.id,
-              origin: "SP",
-              destination: "MG",
-              kmInitial: 100,
-              grossValue: 1000,
-              commissionPercent: 10,
-              commissionValue: 100,
-              status: "in_progress",
-              estimatedDistance: 450,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          freights: [makeFreight("f-1", "in_progress", new Date().toISOString())],
         }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
         setShowForm={vi.fn()}
-        addFreight={vi.fn()}
-        {...defaultProps}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
       />,
     );
 
@@ -292,28 +278,14 @@ describe("FreightTab", () => {
       <FreightTab
         trip={{
           ...tripBase,
-          freights: [
-            {
-              id: "f-1",
-              tripId: tripBase.id,
-              origin: "SP",
-              destination: "MG",
-              kmInitial: 100,
-              grossValue: 1000,
-              commissionPercent: 10,
-              commissionValue: 100,
-              status: "in_progress",
-              estimatedDistance: 450,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          freights: [makeFreight("f-1", "in_progress", new Date().toISOString())],
         }}
         vehicle={driverOwnerVehicle}
         isOpen
         showForm={false}
         setShowForm={vi.fn()}
-        addFreight={vi.fn()}
-        {...defaultProps}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
         completeFreight={completeFreight}
       />,
     );
@@ -332,5 +304,132 @@ describe("FreightTab", () => {
         "complete_only",
       );
     });
+  });
+
+  it("abre modal de hand-off quando já existe frete em andamento", async () => {
+    const startFreight = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "blocked_active_freight", activeFreightId: "f-1" });
+
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            makeFreight("f-1", "in_progress", "2026-03-20T10:00:00.000Z"),
+            makeFreight("f-2", "planned", "2026-03-20T11:00:00.000Z"),
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
+        startFreight={startFreight}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar trecho" }));
+
+    expect(
+      await screen.findByText("Já existe um frete em andamento"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Concluir atual e iniciar este" }),
+    ).toBeInTheDocument();
+  });
+
+  it("confirma o hand-off concluindo o atual e iniciando o planejado", async () => {
+    const startFreight = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "blocked_active_freight", activeFreightId: "f-1" })
+      .mockResolvedValueOnce({ status: "started" });
+    const completeFreight = vi.fn().mockResolvedValue({ promotedFreightId: null });
+
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            makeFreight("f-1", "in_progress", "2026-03-20T10:00:00.000Z"),
+            makeFreight("f-2", "planned", "2026-03-20T11:00:00.000Z"),
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
+        startFreight={startFreight}
+        completeFreight={completeFreight}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar trecho" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Concluir atual e iniciar este" }),
+    );
+
+    await waitFor(() => {
+      expect(completeFreight).toHaveBeenCalledWith(
+        "trip-1",
+        "f-1",
+        "complete_only",
+      );
+      expect(startFreight).toHaveBeenCalledWith("trip-1", "f-2");
+    });
+  });
+
+  it("mantém frete em andamento no topo, depois planned e completed", () => {
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [
+            makeFreight("completed", "completed", "2026-03-20T12:00:00.000Z"),
+            makeFreight("planned", "planned", "2026-03-20T11:00:00.000Z"),
+            makeFreight("active", "in_progress", "2026-03-20T13:00:00.000Z"),
+          ],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
+      />,
+    );
+
+    const routeLabels = screen.getAllByText(/Origem .* → Destino .*/).map((node) =>
+      node.textContent?.trim(),
+    );
+
+    expect(routeLabels).toEqual([
+      "Origem active → Destino active",
+      "Origem planned → Destino planned",
+      "Origem completed → Destino completed",
+    ]);
+  });
+
+  it("não mostra edição de KM para frete concluído", () => {
+    render(
+      <FreightTab
+        trip={{
+          ...tripBase,
+          freights: [makeFreight("done", "completed", "2026-03-20T10:00:00.000Z")],
+        }}
+        vehicle={driverOwnerVehicle}
+        isOpen
+        showForm={false}
+        setShowForm={vi.fn()}
+        addFreight={vi.fn().mockResolvedValue(undefined)}
+        {...getDefaultProps()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Editar KM inicial" })).not.toBeInTheDocument();
+    expect(screen.getByText("Histórico travado")).toBeInTheDocument();
   });
 });

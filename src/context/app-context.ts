@@ -15,6 +15,11 @@ export interface FreightUpdateResult {
   userMessage?: string;
 }
 
+export interface StartFreightResult {
+  status: "started" | "blocked_active_freight";
+  activeFreightId?: string;
+}
+
 export interface AppContextType {
   data: AppData;
   loading: boolean;
@@ -48,7 +53,7 @@ export interface AppContextType {
     options?: { forceRouteRefresh?: boolean; suppressSuccessToast?: boolean },
   ) => Promise<FreightUpdateResult>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
-  startFreight: (tripId: string, freightId: string) => Promise<void>;
+  startFreight: (tripId: string, freightId: string) => Promise<StartFreightResult>;
   completeFreight: (
     tripId: string,
     freightId: string,

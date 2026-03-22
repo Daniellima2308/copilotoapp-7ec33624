@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Trip, Freight, Vehicle, FREIGHT_STATUS_LABELS } from "@/types";
 import { formatCurrency, formatNumber } from "@/lib/calculations";
+import { sortFreightsByOperationalPriority } from "@/lib/freightStatus";
 import {
   CheckCircle2,
   Loader2,
@@ -30,6 +31,7 @@ import {
   shouldShowCommissionToggle,
 } from "@/lib/vehicleOperation";
 import { DeleteConfirmDialog } from "@/components/trip/DeleteConfirmDialog";
+import { FreightUpdateResult, StartFreightResult } from "@/context/app-context";
 
 interface FreightTabProps {
   trip: Trip;
@@ -52,9 +54,9 @@ interface FreightTabProps {
       "id" | "tripId" | "commissionValue" | "status" | "estimatedDistance"
     >,
     options?: { forceRouteRefresh?: boolean; suppressSuccessToast?: boolean },
-  ) => Promise<void>;
+  ) => Promise<FreightUpdateResult>;
   deleteFreight: (tripId: string, freightId: string) => Promise<void>;
-  startFreight: (tripId: string, freightId: string) => Promise<void>;
+  startFreight: (tripId: string, freightId: string) => Promise<StartFreightResult>;
   completeFreight: (
     tripId: string,
     freightId: string,
@@ -99,6 +101,8 @@ export function FreightTab({
   const [isSavingKm, setIsSavingKm] = useState(false);
   const [isSavingRouteReview, setIsSavingRouteReview] = useState(false);
   const [pendingStartId, setPendingStartId] = useState<string | null>(null);
+  const [startBlockedFreight, setStartBlockedFreight] = useState<Freight | null>(null);
+  const [isHandingOffFreight, setIsHandingOffFreight] = useState(false);
   const [freightToDelete, setFreightToDelete] = useState<Freight | null>(null);
   const [isDeletingFreight, setIsDeletingFreight] = useState(false);
   const { toast } = useToast();
@@ -184,9 +188,42 @@ export function FreightTab({
     if (pendingStartId) return;
     try {
       setPendingStartId(freightId);
-      await startFreight(trip.id, freightId);
+      const result = await startFreight(trip.id, freightId);
+      if (result.status === "blocked_active_freight") {
+        const nextFreight =
+          trip.freights.find((freight) => freight.id === freightId) ?? null;
+        setStartBlockedFreight(nextFreight);
+      }
     } finally {
       setPendingStartId(null);
+    }
+  };
+
+  const handleConfirmFreightHandOff = async () => {
+    if (!startBlockedFreight || !activeFreight || isHandingOffFreight) return;
+
+    try {
+      setIsHandingOffFreight(true);
+      await completeFreight(trip.id, activeFreight.id, "complete_only");
+      const startResult = await startFreight(trip.id, startBlockedFreight.id);
+
+      if (startResult.status === "started") {
+        toast({
+          title: "Frete atual concluído",
+          description: "Novo trecho iniciado com clareza na sequência.",
+        });
+      }
+      setStartBlockedFreight(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Tenta novamente.";
+      toast({
+        title: "Não deu para trocar o trecho agora",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsHandingOffFreight(false);
     }
   };
 
@@ -355,6 +392,55 @@ export function FreightTab({
     (freight) => freight.status === "in_progress",
   );
 
+  const sortedFreights = useMemo(
+    () => sortFreightsByOperationalPriority(trip.freights),
+    [trip.freights],
+  );
+
+  const activeFreight = useMemo(
+    () => trip.freights.find((freight) => freight.status === "in_progress") ?? null,
+    [trip.freights],
+  );
+
+  const deleteDialogCopy = useMemo(() => {
+    if (!freightToDelete) {
+      return {
+        title: "Excluir frete?",
+        description: "Essa ação remove este frete da viagem.",
+        warning:
+          "Depois de excluir, esse lançamento sai da viagem e não dá para recuperar por aqui.",
+      };
+    }
+
+    if (freightToDelete.status === "planned") {
+      return {
+        title: "Excluir próximo frete?",
+        description:
+          "Esse trecho vai sair da fila da viagem e não será usado como próximo frete.",
+        warning:
+          "Esse trecho ainda não rodou. O odômetro atual do veículo continua baseado só no que já foi operado.",
+      };
+    }
+
+    if (freightToDelete.status === "in_progress") {
+      return {
+        title: "Excluir frete em andamento?",
+        description:
+          "Esse trecho vai sair da viagem e a viagem ficará sem frete rodando até você iniciar outro trecho.",
+        warning:
+          "O progresso e o KM atual do veículo serão recalculados com base apenas nos lançamentos que sobrarem.",
+      };
+    }
+
+    return {
+      title: "Excluir frete concluído?",
+      description:
+        "Esse trecho concluído vai sair do histórico operacional da viagem.",
+      warning:
+        "O KM do veículo será recalculado só com base nos registros operacionais restantes, incluindo abastecimentos se houver.",
+    };
+  }, [freightToDelete]);
+
   const freightStatusCopy: Record<Freight["status"], string> = {
     planned: "Trecho salvo e aguardando início.",
     in_progress: "Trecho rodando neste momento.",
@@ -402,7 +488,7 @@ export function FreightTab({
           </div>
         )}
 
-        {trip.freights.map((f: Freight) => (
+        {sortedFreights.map((f: Freight) => (
           <div key={f.id} className="gradient-card rounded-xl p-3 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -461,7 +547,7 @@ export function FreightTab({
                 <p className="text-sm font-mono font-bold">
                   {formatNumber(f.kmInitial)} km
                 </p>
-                {isOpen && (
+                {isOpen && f.status !== "completed" && (
                   <button
                     onClick={() => openEditKmDialog(f)}
                     className="p-1 text-muted-foreground hover:text-foreground"
@@ -469,6 +555,11 @@ export function FreightTab({
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
+                )}
+                {isOpen && f.status === "completed" && (
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    Histórico travado
+                  </span>
                 )}
               </div>
             </div>
@@ -513,7 +604,7 @@ export function FreightTab({
                   ) : (
                     <PlayCircle className="w-3.5 h-3.5" />
                   )}{" "}
-                  Iniciar
+                  Iniciar trecho
                 </button>
               )}
               {f.status === "in_progress" && (
@@ -649,9 +740,54 @@ export function FreightTab({
             onClick={() => setShowForm(true)}
             className="w-full border border-dashed border-border rounded-lg p-3 flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-sm font-medium min-h-[44px]"
           >
-            <Plus className="w-4 h-4" /> Adicionar frete
+            <Plus className="w-4 h-4" /> Adicionar próximo frete
           </button>
         ))}
+
+      <Dialog
+        open={!!startBlockedFreight}
+        onOpenChange={(open) =>
+          !open && !isHandingOffFreight && setStartBlockedFreight(null)
+        }
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Já existe um frete em andamento</DialogTitle>
+            <DialogDescription>
+              {startBlockedFreight && activeFreight
+                ? `O trecho ${activeFreight.origin} → ${activeFreight.destination} ainda está rodando. Para iniciar ${startBlockedFreight.origin} → ${startBlockedFreight.destination}, conclua o atual primeiro.`
+                : "Conclua o trecho atual antes de iniciar outro frete planejado."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg bg-secondary/50 p-3 text-xs leading-relaxed text-muted-foreground">
+            Esse hand-off evita trocar o frete ativo sem clareza. Assim o histórico operacional da viagem continua previsível.
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <button
+              className="w-full rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+              disabled={isHandingOffFreight}
+              onClick={handleConfirmFreightHandOff}
+            >
+              {isHandingOffFreight ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Processando...
+                </>
+              ) : (
+                "Concluir atual e iniciar este"
+              )}
+            </button>
+            <button
+              className="w-full rounded-md border px-3 py-2 text-sm font-semibold min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isHandingOffFreight}
+              onClick={() => setStartBlockedFreight(null)}
+            >
+              Cancelar
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!finishingFreight}
@@ -713,7 +849,7 @@ export function FreightTab({
           <DialogHeader>
             <DialogTitle>Editar KM inicial</DialogTitle>
             <DialogDescription>
-              Ajuste o KM inicial deste trecho. O progresso e as leituras da viagem serão recalculados.
+              Ajuste o KM inicial deste trecho enquanto ele ainda não foi fechado. O progresso e as leituras da viagem serão recalculados.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -819,8 +955,9 @@ export function FreightTab({
           if (!open && !isDeletingFreight) setFreightToDelete(null);
         }}
         onConfirm={handleDeleteFreight}
-        title="Excluir frete?"
-        description="Essa ação remove este frete da viagem."
+        title={deleteDialogCopy.title}
+        description={deleteDialogCopy.description}
+        warning={deleteDialogCopy.warning}
         isLoading={isDeletingFreight}
       />
     </>

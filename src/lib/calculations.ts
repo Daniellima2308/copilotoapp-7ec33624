@@ -1,4 +1,5 @@
 import { Freight, Trip } from "@/types";
+import { getWeightedTripAverageConsumption } from "@/lib/fueling";
 
 export function getOperationalFreights(trip: Trip): Freight[] {
   return trip.freights.filter((freight) => freight.status === "in_progress" || freight.status === "completed");
@@ -99,10 +100,13 @@ export function getTripLatestCheckpointKm(trip: Trip): number {
 }
 
 export function getTripAverageConsumption(trip: Trip): number {
-  const fullTankFuelings = trip.fuelings.filter((f) => (f.fullTank ?? true) && f.average > 0);
-  if (fullTankFuelings.length === 0) return 0;
-  const avgSum = fullTankFuelings.reduce((sum, f) => sum + f.average, 0);
-  return Math.round((avgSum / fullTankFuelings.length) * 100) / 100;
+  return getWeightedTripAverageConsumption(
+    trip.fuelings.map((fueling) => ({
+      liters: fueling.liters,
+      fullTank: fueling.fullTank ?? true,
+      average: fueling.average,
+    })),
+  );
 }
 
 export function getTripEstimatedKmToDate(trip: Trip): number {

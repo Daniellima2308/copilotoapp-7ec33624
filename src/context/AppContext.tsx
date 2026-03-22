@@ -51,6 +51,36 @@ import {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+function getTripMaxRealKm(trip: Trip | undefined, vehicleCurrentKm = 0) {
+  if (!trip) return vehicleCurrentKm;
+
+  return Math.max(
+    vehicleCurrentKm,
+    ...trip.fuelings.map((fueling) => fueling.kmCurrent || 0),
+    ...trip.freights
+      .filter((freight) => freight.status === "in_progress" || freight.status === "completed")
+      .map((freight) => freight.kmInitial || 0),
+  );
+}
+
+function getTripStartKm(trip: Trip | undefined) {
+  if (!trip) return 0;
+
+  const checkpoints = [
+    ...trip.fuelings.map((fueling) => fueling.kmCurrent),
+    ...trip.freights
+      .filter((freight) => freight.status === "in_progress" || freight.status === "completed")
+      .map((freight) => freight.kmInitial),
+  ].filter((km): km is number => Number.isFinite(km) && km >= 0);
+
+  if (checkpoints.length === 0) return 0;
+  return Math.min(...checkpoints);
+}
+
+function getTripPendingPlannedFreights(trip: Trip | undefined) {
+  return (trip?.freights || []).filter((freight) => freight.status === "planned");
+}
+
 function showActionSuccess(title: string, description?: string) {
   toast({ title, description });
 }
@@ -868,6 +898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                 .update({
                   status: "finished",
                   finished_at: new Date().toISOString(),
+                  estimated_distance: action.payload.finalTripDistance,
                 })
                 .eq("id", action.payload.tripId);
               if (action.payload.arrivalKm) {
@@ -1124,12 +1155,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const finishTrip = useCallback(
     async (
       id: string,
-      arrivalKm?: number,
-    ): Promise<{ autoCompletedFreightId?: string | null }> => {
+      options?: {
+        arrivalKm?: number;
+        allowPendingPlanned?: boolean;
+      },
+    ): Promise<{
+      autoCompletedFreightId?: string | null;
+      pendingPlannedFreights?: number;
+    }> => {
       const trip = data.trips.find((t) => t.id === id);
+      const arrivalKm = options?.arrivalKm;
+      const allowPendingPlanned = options?.allowPendingPlanned ?? false;
 
-      // Validate: trip must have at least 1 freight
-      if (trip && trip.freights.length === 0) {
+      if (!trip) {
+        throw new Error("Trip not found");
+      }
+
+      if (trip.freights.length === 0) {
         showActionError(
           "Não foi possível finalizar a viagem",
           "Adicione pelo menos 1 frete antes de finalizar a viagem.",
@@ -1138,8 +1180,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       const activeFreight =
-        trip?.freights.find((freight) => freight.status === "in_progress") ??
+        trip.freights.find((freight) => freight.status === "in_progress") ??
         null;
+      const pendingPlannedFreights = getTripPendingPlannedFreights(trip);
+
+      if (pendingPlannedFreights.length > 0 && !allowPendingPlanned) {
+        showActionNotice(
+          "Tem trecho não iniciado nesta viagem",
+          pendingPlannedFreights.length === 1
+            ? "Revise esse trecho antes de fechar ou confirme que ele deve ficar fora do consolidado final."
+            : `Existem ${pendingPlannedFreights.length} trechos não iniciados. Confirme o fechamento para deixar esses trechos fora do consolidado final.`,
+        );
+        return {
+          autoCompletedFreightId: activeFreight?.id ?? null,
+          pendingPlannedFreights: pendingPlannedFreights.length,
+        };
+      }
+
+      const vehicle = data.vehicles.find((item) => item.id === trip.vehicleId);
+      const minOperationalKm = getTripMaxRealKm(trip, vehicle?.currentKm || 0);
+      const tripStartKm = getTripStartKm(trip);
 
       if (!isOnline()) {
         addToOfflineQueue({
@@ -1147,12 +1207,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           payload: {
             tripId: id,
             arrivalKm,
-            vehicleId: trip?.vehicleId,
+            vehicleId: trip.vehicleId,
             activeFreightId: activeFreight?.id ?? null,
+            finalTripDistance:
+              arrivalKm != null && tripStartKm > 0
+                ? Math.max(arrivalKm - tripStartKm, 0)
+                : trip.estimatedDistance,
           },
         });
         showOfflineSaved("Viagem finalizada");
-        return { autoCompletedFreightId: activeFreight?.id ?? null };
+        return {
+          autoCompletedFreightId: activeFreight?.id ?? null,
+          pendingPlannedFreights: pendingPlannedFreights.length,
+        };
       }
 
       if (arrivalKm != null) {
@@ -1166,7 +1233,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             "Não foi possível finalizar a viagem",
             arrivalValidation.message,
           );
-          return { autoCompletedFreightId: activeFreight?.id ?? null };
+          return {
+            autoCompletedFreightId: activeFreight?.id ?? null,
+            pendingPlannedFreights: pendingPlannedFreights.length,
+          };
+        }
+
+        if (arrivalKm < minOperationalKm) {
+          const referenceLabel =
+            minOperationalKm === (vehicle?.currentKm || 0)
+              ? "odômetro atual do veículo"
+              : "maior KM real já lançado nesta operação";
+          showActionError(
+            "Não foi possível finalizar a viagem",
+            `O KM de chegada não pode ficar abaixo de ${minOperationalKm.toLocaleString("pt-BR")} km, que é o ${referenceLabel}.`,
+          );
+          return {
+            autoCompletedFreightId: activeFreight?.id ?? null,
+            pendingPlannedFreights: pendingPlannedFreights.length,
+          };
+        }
+
+        const vehicleTimelineKms = await getVehicleTimelineKms(trip.vehicleId);
+        const kmContextValidation = validateKmByContext(
+          arrivalKm,
+          "KM de chegada",
+          vehicleTimelineKms,
+        );
+        if (!kmContextValidation.isValid) {
+          showActionError(
+            "Não foi possível finalizar a viagem",
+            kmContextValidation.message,
+          );
+          return {
+            autoCompletedFreightId: activeFreight?.id ?? null,
+            pendingPlannedFreights: pendingPlannedFreights.length,
+          };
+        }
+
+        if (kmContextValidation.warnings.length > 0) {
+          showWarnings(kmContextValidation.warnings);
         }
       }
 
@@ -1177,23 +1283,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           .eq("id", activeFreight.id);
       }
 
+      const finalTripDistance =
+        arrivalKm != null && tripStartKm > 0
+          ? Math.max(arrivalKm - tripStartKm, 0)
+          : trip.estimatedDistance;
+
       await supabase
         .from("trips")
-        .update({ status: "finished", finished_at: new Date().toISOString() })
+        .update({
+          status: "finished",
+          finished_at: new Date().toISOString(),
+          estimated_distance: finalTripDistance,
+        })
         .eq("id", id);
-      if (arrivalKm && trip) {
+      if (arrivalKm != null) {
         await updateVehicleKm(trip.vehicleId, arrivalKm);
+      } else {
+        await fetchData();
       }
-      await fetchData();
       showActionSuccess(
         "Viagem finalizada",
-        activeFreight?.id
-          ? "Frete em andamento concluído junto com a viagem."
-          : undefined,
+        pendingPlannedFreights.length > 0
+          ? activeFreight?.id
+            ? "Frete em andamento concluído. Trechos não iniciados ficaram fora do consolidado final da viagem."
+            : "Trechos não iniciados ficaram fora do consolidado final da viagem."
+          : activeFreight?.id
+            ? "Frete em andamento concluído junto com a viagem."
+            : "Fechamento concluído com o consolidado final da viagem.",
       );
-      return { autoCompletedFreightId: activeFreight?.id ?? null };
+      return {
+        autoCompletedFreightId: activeFreight?.id ?? null,
+        pendingPlannedFreights: pendingPlannedFreights.length,
+      };
     },
-    [data.trips, fetchData, updateVehicleKm],
+    [data.trips, data.vehicles, fetchData, updateVehicleKm],
   );
 
   const deleteTrip = useCallback(

@@ -8,8 +8,23 @@ export function getPlannedFreights(trip: Trip): Freight[] {
   return trip.freights.filter((freight) => freight.status === "planned");
 }
 
+function getFinalizedFreights(trip: Trip): Freight[] {
+  return trip.status === "finished" ? getOperationalFreights(trip) : trip.freights;
+}
+
+function getFreightEstimatedKmSum(freights: Freight[]): number {
+  return freights.reduce(
+    (sum, freight) => sum + (freight.estimatedDistance > 0 ? freight.estimatedDistance : 0),
+    0,
+  );
+}
+
+export function getTripFreightEstimatedKmTotal(trip: Trip): number {
+  return getFreightEstimatedKmSum(trip.freights);
+}
+
 export function getTripGrossRevenue(trip: Trip): number {
-  return trip.freights.reduce((sum, f) => sum + f.grossValue, 0);
+  return getFinalizedFreights(trip).reduce((sum, f) => sum + f.grossValue, 0);
 }
 
 export function getTripGrossRevenueToDate(trip: Trip): number {
@@ -17,7 +32,7 @@ export function getTripGrossRevenueToDate(trip: Trip): number {
 }
 
 export function getTripTotalCommissions(trip: Trip): number {
-  return trip.freights.reduce((sum, f) => sum + f.commissionValue, 0);
+  return getFinalizedFreights(trip).reduce((sum, f) => sum + f.commissionValue, 0);
 }
 
 export function getTripTotalCommissionsToDate(trip: Trip): number {
@@ -61,10 +76,21 @@ export function getTripActualKmToDate(trip: Trip): number {
 }
 
 export function getTripTotalKm(trip: Trip): number {
-  return getTripActualKmToDate(trip);
+  return getTripActualKmTotal(trip);
 }
 
 export function getTripActualKmTotal(trip: Trip): number {
+  if (trip.status === "finished") {
+    const finalizedFreights = getOperationalFreights(trip);
+    const checkpoints = [
+      ...trip.fuelings.map((f) => f.kmCurrent),
+      ...finalizedFreights.map((f) => f.kmInitial),
+      trip.estimatedDistance,
+    ];
+
+    return getKmFromCheckpoints(checkpoints);
+  }
+
   return getTripActualKmToDate(trip);
 }
 
@@ -72,6 +98,9 @@ export function getTripLatestCheckpointKm(trip: Trip): number {
   const checkpoints = [
     ...trip.fuelings.map((f) => f.kmCurrent),
     ...getOperationalFreights(trip).map((f) => f.kmInitial),
+    ...(trip.status === "finished" && trip.estimatedDistance > 0
+      ? [trip.estimatedDistance]
+      : []),
   ].filter((km) => km > 0);
 
   if (checkpoints.length === 0) return 0;
@@ -79,7 +108,6 @@ export function getTripLatestCheckpointKm(trip: Trip): number {
 }
 
 export function getTripAverageConsumption(trip: Trip): number {
-  // Only consider fuelings with fullTank that have a calculated average
   const fullTankFuelings = trip.fuelings.filter((f) => (f.fullTank ?? true) && f.average > 0);
   if (fullTankFuelings.length === 0) return 0;
   const avgSum = fullTankFuelings.reduce((sum, f) => sum + f.average, 0);
@@ -104,16 +132,21 @@ export function getTripKmBasisToDate(trip: Trip): { km: number; source: "actual"
 }
 
 export function getTripEstimatedKmTotal(trip: Trip): number {
-  const freightEstimatedTotal = trip.freights.reduce(
-    (sum, freight) => sum + (freight.estimatedDistance > 0 ? freight.estimatedDistance : 0),
-    0,
-  );
+  const freightEstimatedTotal = getTripFreightEstimatedKmTotal(trip);
+
+  if (trip.status === "finished") {
+    return freightEstimatedTotal;
+  }
 
   if (trip.estimatedDistance > 0) {
     return trip.estimatedDistance;
   }
 
   return freightEstimatedTotal;
+}
+
+export function getTripFinalDistanceSnapshot(trip: Trip): number {
+  return trip.status === "finished" && trip.estimatedDistance > 0 ? trip.estimatedDistance : 0;
 }
 
 export function getTripKmBasisTotal(trip: Trip): { km: number; source: "actual" | "estimated" | "none" } {
@@ -160,8 +193,9 @@ export function getTripProfitPerKmToDate(trip: Trip): number {
 }
 
 export function getLastDestination(trip: Trip): string {
-  if (trip.freights.length === 0) return "—";
-  return trip.freights[trip.freights.length - 1].destination;
+  const finalizedFreights = getFinalizedFreights(trip);
+  if (finalizedFreights.length === 0) return "—";
+  return finalizedFreights[finalizedFreights.length - 1].destination;
 }
 
 export function formatCurrency(value: number): string {

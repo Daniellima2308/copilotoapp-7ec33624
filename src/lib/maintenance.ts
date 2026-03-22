@@ -33,9 +33,9 @@ export function checkAndNotifyMaintenance(alerts: MaintenanceAlert[]) {
   
   for (const alert of alerts) {
     const statusText = alert.status === "overdue" ? "Vencida" : "Próxima";
-    new Notification("Alerta do Copiloto 🚛", {
+    new Notification("Alerta do SENTINELA", {
       body: `Atenção: A manutenção de ${alert.service.serviceName} está ${statusText}. Verifique o aplicativo.`,
-      icon: "/logo.png",
+      icon: "/branding/sentinela/icon-fallback.svg",
     });
   }
 }

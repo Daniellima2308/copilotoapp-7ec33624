@@ -150,7 +150,7 @@ function computeSmartBanner(
     return {
       title: "Viagem rodando com parte em previsão",
       message:
-        "O Copiloto está usando a rota cadastrada até entrar mais KM real. Isso ajuda a acompanhar sem travar a operação.",
+        "O SENTINELA está usando a rota cadastrada até entrar mais KM real. Isso ajuda a acompanhar sem travar a operação.",
     };
   }
 
@@ -860,7 +860,7 @@ const TripDetailPage = () => {
                       : "—",
                   description:
                     (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0
-                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}${isOpen && kmBasisToDate.source === "estimated" ? "A base de KM considera só trechos operacionais, sem incluir fretes planejados. " : ""}Como o Copiloto chegou nesse valor.`
+                      ? `${hasEstimatedKm ? "Esse valor ainda pode mudar durante a viagem. " : ""}${isOpen && kmBasisToDate.source === "estimated" ? "A base de KM considera só trechos operacionais, sem incluir fretes planejados. " : ""}Como o SENTINELA chegou nesse valor.`
                       : "Aguardando KM da viagem.",
                   lines:
                     (isOpen ? kmBasisToDate.km : kmBasisTotal.km) > 0

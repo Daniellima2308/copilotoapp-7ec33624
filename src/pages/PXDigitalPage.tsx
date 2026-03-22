@@ -5,7 +5,7 @@ import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { ConnectionIndicator } from "@/components/ConnectionIndicator";
 import { toast } from "@/hooks/use-toast";
 import { Send } from "lucide-react";
-import logoImg from "@/assets/logo.png";
+import { BrandWordmark } from "@/components/branding/BrandWordmark";
 
 import RadioDisplay from "@/components/px/RadioDisplay";
 import RadioLEDs, { type LedCategory } from "@/components/px/RadioLEDs";
@@ -290,7 +290,7 @@ const PXDigitalPage = () => {
       {/* Header — fixed */}
       <header className="flex-shrink-0 px-4 pt-5 pb-2">
         <div className="flex items-center gap-3">
-          <img src={logoImg} alt="Copiloto" className="h-8 w-auto opacity-80" />
+          <BrandWordmark theme="light" className="h-auto w-[136px] opacity-90" />
           <div className="flex-1">
             <h1
               className="text-sm font-mono font-bold tracking-[0.15em]"

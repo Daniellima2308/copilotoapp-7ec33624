@@ -62,7 +62,7 @@ const MaintenancePage = () => {
           <Truck className="w-16 h-16 text-muted-foreground/40" />
           <h2 className="text-lg font-bold">Acompanhe a saúde do seu bruto! 🚛</h2>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Aqui o Copiloto te avisa a hora certa de trocar óleo, filtros e lonas de freio, evitando que você fique na mão no trecho e gaste com imprevistos. Para ativar os alertas, você precisa cadastrar o seu primeiro veículo.
+            Aqui o SENTINELA te avisa a hora certa de trocar óleo, filtros e lonas de freio, evitando que você fique na mão no trecho e gaste com imprevistos. Para ativar os alertas, você precisa cadastrar o seu primeiro veículo.
           </p>
           <button
             onClick={() => navigate("/vehicles")}

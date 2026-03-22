@@ -13,7 +13,8 @@ import { Trip } from "@/types";
 import { Plus, Trash2, FileDown } from "lucide-react";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import logoImg from "@/assets/logo.png";
+import { BrandWordmark } from "@/components/branding/BrandWordmark";
+import { BRAND_SLOGAN_SECONDARY } from "@/branding/brand";
 import { useNavigate } from "react-router-dom";
 import { exportMultipleTripsPdf } from "@/lib/exportPdf";
 
@@ -75,10 +76,10 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background pb-24">
       <header className="px-4 pt-6 pb-4">
         <div className="flex items-center gap-3 mb-1">
-          <img src={logoImg} alt="Copiloto" className="h-10 w-auto drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+          <BrandWordmark theme="dark" className="h-auto w-[164px] max-w-[40vw]" />
           <div className="flex-1">
-            <h1 className="text-xl font-black tracking-tight">Copiloto</h1>
-            <p className="text-[10px] text-muted-foreground leading-tight">seu parceiro na gestão de viagem</p>
+            <h1 className="sr-only">SENTINELA</h1>
+            <p className="text-[10px] text-muted-foreground leading-tight">{BRAND_SLOGAN_SECONDARY}</p>
           </div>
           <ConnectionIndicator />
           <HamburgerMenu />

@@ -12,8 +12,8 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   {
     targetId: "",
-    title: "Bem-vindo ao Copiloto! 🚛",
-    text: "Fala, parceiro! O Copiloto foi criado para ser o seu braço direito na estrada. Vamos dar uma volta rápida pelo aplicativo para você ver como é fácil controlar seus fretes e colocar mais dinheiro no bolso. Leva só um minutinho!",
+    title: "Bem-vindo ao SENTINELA! 🚛",
+    text: "Fala, parceiro! O SENTINELA foi criado para ser o seu braço direito na estrada. Vamos dar uma volta rápida pelo aplicativo para você ver como é fácil controlar seus fretes e colocar mais dinheiro no bolso. Leva só um minutinho!",
   },
   {
     targetId: "nav-vehicles",

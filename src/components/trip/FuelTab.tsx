@@ -131,7 +131,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
         <div className="gradient-card rounded-xl border border-dashed border-border/70 p-4">
           <p className="text-sm font-semibold text-foreground">Ainda não há abastecimento lançado.</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Quando entrar o primeiro abastecimento, o Copiloto começa a montar média, custo e uma leitura mais fiel da viagem.
+            Quando entrar o primeiro abastecimento, o SENTINELA começa a montar média, custo e uma leitura mais fiel da viagem.
           </p>
         </div>
       )}

@@ -15,7 +15,7 @@ export function NotificationPrompt() {
   const handleEnable = async () => {
     const result = await Notification.requestPermission();
     if (result === "granted") {
-      new Notification("Copiloto 🚛", { body: "Alertas de manutenção ativados!" });
+      new Notification("SENTINELA", { body: "Alertas de manutenção ativados!" });
     }
     setShow(false);
   };

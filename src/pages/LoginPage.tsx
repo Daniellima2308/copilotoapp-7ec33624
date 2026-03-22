@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/context/auth-context";
-import { Navigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import logoImg from "@/assets/logo.png";
+import { BrandLockup } from "@/components/branding/BrandLockup";
+import { BRAND_NAME, BRAND_SLOGAN_SECONDARY } from "@/branding/brand";
 
 const LoginPage = () => {
   const { user, loading } = useAuth();
@@ -51,14 +51,12 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo */}
         <div className="text-center">
-          <img src={logoImg} alt="Copiloto" className="h-20 w-auto mx-auto mb-4 drop-shadow-[0_0_16px_rgba(59,130,246,0.4)]" />
-          <h1 className="text-3xl font-black tracking-tight">Copiloto</h1>
-          <p className="text-sm text-muted-foreground mt-1">seu parceiro na gestão de viagem</p>
+          <BrandLockup theme="dark" showSlogan className="h-auto w-full max-w-[280px] mx-auto mb-5" />
+          <h1 className="sr-only">{BRAND_NAME}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{BRAND_SLOGAN_SECONDARY}</p>
         </div>
 
-        {/* Google Button */}
         <button
           onClick={handleGoogle}
           disabled={submitting}
@@ -73,48 +71,23 @@ const LoginPage = () => {
           Entrar com Google
         </button>
 
-        {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px bg-border" />
           <span className="text-sm text-muted-foreground">ou</span>
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* Email Form */}
         <form onSubmit={handleLogin} className="space-y-4">
-          <input
-            type="email"
-            placeholder="E-mail"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="input-field w-full text-base py-4"
-            autoComplete="email"
-          />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="input-field w-full text-base py-4"
-            autoComplete="current-password"
-          />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full gradient-profit text-primary-foreground rounded-xl py-4 text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
+          <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field w-full text-base py-4" autoComplete="email" />
+          <input type="password" placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} className="input-field w-full text-base py-4" autoComplete="current-password" />
+          <button type="submit" disabled={submitting} className="w-full gradient-profit text-primary-foreground rounded-xl py-4 text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-50">
             Entrar
           </button>
         </form>
 
-        {/* Links */}
         <div className="flex flex-col items-center gap-2 text-sm">
-          <Link to="/register" className="text-primary hover:underline font-medium">
-            Criar conta
-          </Link>
-          <Link to="/forgot-password" className="text-muted-foreground hover:text-foreground">
-            Esqueci a senha
-          </Link>
+          <Link to="/register" className="text-primary hover:underline font-medium">Criar conta</Link>
+          <Link to="/forgot-password" className="text-muted-foreground hover:text-foreground">Esqueci a senha</Link>
         </div>
       </div>
     </div>

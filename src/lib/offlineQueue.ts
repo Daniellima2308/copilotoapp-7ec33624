@@ -1,4 +1,4 @@
-const QUEUE_KEY = "copiloto-offline-queue";
+const QUEUE_KEY = "sentinela-offline-queue";
 
 export interface OfflineAction {
   id: string;
@@ -41,7 +41,7 @@ export function isOnline(): boolean {
 }
 
 // Local data cache
-const CACHE_KEY = "copiloto-data-cache";
+const CACHE_KEY = "sentinela-data-cache";
 
 export function getCachedData<T>(): T | null {
   try {

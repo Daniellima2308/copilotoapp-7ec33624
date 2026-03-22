@@ -30,7 +30,7 @@ import {
   getCachedData,
 } from "@/lib/offlineQueue";
 import { toast } from "@/hooks/use-toast";
-import { AppContext } from "@/context/app-context";
+import { AppContext, StartFreightResult } from "@/context/app-context";
 import {
   getKmBounds,
   getNumericWarnings,
@@ -329,6 +329,40 @@ async function calculateCostAllocation(
   };
 }
 
+function getFreightCreationFeedback(status: FreightStatus) {
+  if (status === "in_progress") {
+    return {
+      title: "Frete iniciado",
+      description: "Este trecho já virou o trecho atual da viagem.",
+      variant: "success" as const,
+    };
+  }
+
+  return {
+    title: "Próximo frete adicionado",
+    description: "Trecho salvo e aguardando início.",
+    variant: "notice" as const,
+  };
+}
+
+function getVehicleCurrentKmFromSources(params: {
+  freightKms: Array<number | null | undefined>;
+  fuelingKms: Array<number | null | undefined>;
+}) {
+  const validFreightKms = params.freightKms.filter(
+    (km): km is number => typeof km === "number" && Number.isFinite(km) && km > 0,
+  );
+  const validFuelingKms = params.fuelingKms.filter(
+    (km): km is number => typeof km === "number" && Number.isFinite(km) && km > 0,
+  );
+  const maxKm = Math.max(0, ...validFreightKms, ...validFuelingKms);
+
+  return {
+    maxKm,
+    hasKmRecords: validFreightKms.length > 0 || validFuelingKms.length > 0,
+  };
+}
+
 async function recalculateVehicleKm(vehicleId: string) {
   const { data: vehicleTrips } = await supabase
     .from("trips")
@@ -337,28 +371,22 @@ async function recalculateVehicleKm(vehicleId: string) {
   const tripIds = (vehicleTrips || []).map((t) => t.id);
 
   if (tripIds.length === 0) {
-    // No trips left — we can't determine original KM, leave as-is
     return;
   }
 
-  const { data: fuelings } = await supabase
-    .from("fuelings")
-    .select("km_current")
-    .in("trip_id", tripIds)
-    .order("km_current", { ascending: false })
-    .limit(1);
+  const [{ data: fuelings }, { data: freights }] = await Promise.all([
+    supabase.from("fuelings").select("km_current").in("trip_id", tripIds),
+    supabase
+      .from("freights")
+      .select("km_initial,status")
+      .in("trip_id", tripIds)
+      .in("status", ["in_progress", "completed"]),
+  ]);
 
-  const { data: freights } = await supabase
-    .from("freights")
-    .select("km_initial")
-    .in("trip_id", tripIds)
-    .order("km_initial", { ascending: false })
-    .limit(1);
-
-  const maxFuelingKm = fuelings?.[0]?.km_current || 0;
-  const maxFreightKm = freights?.[0]?.km_initial || 0;
-  const maxKm = Math.max(maxFuelingKm, maxFreightKm, 0);
-  const hasKmRecords = maxFuelingKm > 0 || maxFreightKm > 0;
+  const { maxKm, hasKmRecords } = getVehicleCurrentKmFromSources({
+    fuelingKms: (fuelings || []).map((fueling) => fueling.km_current),
+    freightKms: (freights || []).map((freight) => freight.km_initial),
+  });
 
   if (hasKmRecords) {
     await supabase
@@ -1270,6 +1298,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const commissionValue = f.grossValue * (f.commissionPercent / 100);
       const freightStatus = getFreightStatusForInsert(trip?.freights || []);
+      const freightFeedback = getFreightCreationFeedback(freightStatus);
 
       if (!isOnline()) {
         addToOfflineQueue({
@@ -1287,7 +1316,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             estimated_distance: 0,
           },
         });
-        showOfflineSaved("Frete salvo");
+        if (freightFeedback.variant === "notice") {
+          showActionNotice(freightFeedback.title, freightFeedback.description);
+        } else {
+          showOfflineSaved(freightFeedback.title);
+        }
         return;
       }
 
@@ -1339,13 +1372,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       await recalculateTripEstimatedDistance(tripId);
       await fetchData();
-      showActionSuccess("Frete salvo");
+      if (freightFeedback.variant === "notice") {
+        showActionNotice(freightFeedback.title, freightFeedback.description);
+      } else {
+        showActionSuccess(freightFeedback.title, freightFeedback.description);
+      }
     },
     [user, data.trips, fetchData, recalculateTripEstimatedDistance],
   );
 
   const deleteFreight = useCallback(
     async (tripId: string, freightId: string) => {
+      const trip = data.trips.find((t) => t.id === tripId);
+      const vehicleId = trip?.vehicleId;
+      const freightToDelete =
+        trip?.freights.find((freight) => freight.id === freightId) ?? null;
+
       if (!isOnline()) {
         addToOfflineQueue({
           type: "deleteFreight",
@@ -1355,34 +1397,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      const trip = data.trips.find((t) => t.id === tripId);
-      const vehicleId = trip?.vehicleId;
-
       await supabase.from("freights").delete().eq("id", freightId);
       await recalculateTripEstimatedDistance(tripId);
       if (vehicleId) {
         await recalculateVehicleKm(vehicleId);
       }
       await fetchData();
+
+      if (freightToDelete?.status === "planned") {
+        showActionNotice(
+          "Próximo frete excluído",
+          "A fila da viagem foi atualizada sem mexer no KM atual do veículo.",
+        );
+        return;
+      }
+
+      if (freightToDelete?.status === "completed") {
+        showActionNotice(
+          "Frete concluído excluído",
+          "Histórico e odômetro foram recalculados com base no que restou na operação.",
+        );
+        return;
+      }
+
+      showActionNotice(
+        "Frete em andamento excluído",
+        "A viagem ficou sem trecho ativo até você iniciar outro frete.",
+      );
     },
     [data.trips, fetchData, recalculateTripEstimatedDistance],
   );
 
   const startFreight = useCallback(
-    async (tripId: string, freightId: string) => {
-      await supabase
-        .from("freights")
-        .update({ status: "planned" })
-        .eq("trip_id", tripId)
-        .eq("status", "in_progress");
+    async (tripId: string, freightId: string): Promise<StartFreightResult> => {
+      const trip = data.trips.find((candidate) => candidate.id === tripId);
+      const activeFreight =
+        trip?.freights.find(
+          (freight) =>
+            freight.status === "in_progress" && freight.id !== freightId,
+        ) ?? null;
+
+      if (activeFreight) {
+        return {
+          status: "blocked_active_freight",
+          activeFreightId: activeFreight.id,
+        };
+      }
+
       await supabase
         .from("freights")
         .update({ status: "in_progress" })
         .eq("id", freightId);
       await fetchData();
-      showActionSuccess("Frete iniciado");
+      showActionSuccess(
+        "Frete iniciado",
+        "Este trecho agora está em andamento na viagem.",
+      );
+      return { status: "started" };
     },
-    [fetchData],
+    [data.trips, fetchData],
   );
 
   const completeFreight = useCallback(
@@ -1503,7 +1576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const { data: currentFreight, error: currentFreightError } =
         await supabase
           .from("freights")
-          .select("origin, destination, estimated_distance")
+          .select("origin, destination, estimated_distance, status, km_initial")
           .eq("id", freightId)
           .single();
 
@@ -1512,6 +1585,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           currentFreightError.message ||
             "Falha ao carregar dados atuais do frete.",
         );
+      }
+
+      if (
+        currentFreight.status === "completed" &&
+        currentFreight.km_initial !== f.kmInitial
+      ) {
+        const userMessage =
+          "Frete concluído não pode ter o KM inicial alterado no fluxo normal.";
+        showActionError("Não foi possível salvar agora", userMessage);
+        return {
+          status: "blocked",
+          userMessage,
+        };
       }
 
       const routeChanged =

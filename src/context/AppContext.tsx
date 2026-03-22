@@ -48,6 +48,13 @@ import {
   getFreightStatusForInsert,
   normalizeTripFreights,
 } from "@/lib/freightStatus";
+import {
+  buildFuelingFinancialPlan,
+  buildTripStartKmMap,
+  calculateFuelingPricePerLiter,
+  getFuelingOriginalTotalValue,
+  sortFuelingsByTimeline,
+} from "@/lib/fueling";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -220,142 +227,128 @@ async function updateTripEstimatedDistanceBySum(tripId: string): Promise<void> {
   }
 }
 
-interface LastFullTankFueling {
-  kmCurrent: number;
-  tripId: string;
+async function ensureMutation<T extends { message?: string } | null>(
+  mutation: Promise<{ data: unknown; error: T }>,
+  fallbackMessage: string,
+) {
+  const result = await mutation;
+  if (result.error) {
+    throw new Error(result.error.message || fallbackMessage);
+  }
+
+  return result;
 }
 
-async function getLastVehicleFullTankFueling(
-  vehicleId: string,
-  currentKm: number,
-): Promise<LastFullTankFueling | null> {
-  const { data: vehicleTrips } = await supabase
+interface VehicleFuelingSnapshot {
+  trips: Trip[];
+  tripIds: string[];
+  fuelings: Array<{
+    id: string;
+    trip_id: string;
+    station: string;
+    total_value: number;
+    liters: number;
+    km_current: number;
+    full_tank: boolean | null;
+    date: string;
+    receipt_url: string | null;
+    original_total_value: number | null;
+  }>;
+}
+
+async function getVehicleFuelingSnapshot(vehicleId: string): Promise<VehicleFuelingSnapshot> {
+  const { data: vehicleTrips, error: tripsError } = await supabase
     .from("trips")
-    .select("id")
+    .select("id,status,created_at,finished_at,estimated_distance")
     .eq("vehicle_id", vehicleId);
 
-  const tripIds = (vehicleTrips || []).map((t) => t.id);
-  if (tripIds.length === 0) return null;
+  if (tripsError) {
+    throw new Error(tripsError.message || "Falha ao carregar viagens do veículo.");
+  }
 
-  const { data: prevFuelings } = await supabase
-    .from("fuelings")
-    .select("km_current, trip_id")
-    .in("trip_id", tripIds)
-    .eq("full_tank", true)
-    .lt("km_current", currentKm)
-    .order("km_current", { ascending: false })
-    .limit(1);
+  const tripIds = (vehicleTrips || []).map((trip) => trip.id);
+  if (tripIds.length === 0) {
+    return { trips: [], tripIds: [], fuelings: [] };
+  }
 
-  const previous = prevFuelings?.[0];
-  if (!previous) return null;
-
-  return {
-    kmCurrent: previous.km_current,
-    tripId: previous.trip_id,
-  };
-}
-
-async function calculateFuelingAverage(
-  vehicleId: string,
-  fueling: { kmCurrent: number; liters: number; fullTank: boolean },
-): Promise<number> {
-  if (!fueling.fullTank || fueling.liters <= 0) return 0;
-
-  const previous = await getLastVehicleFullTankFueling(
-    vehicleId,
-    fueling.kmCurrent,
-  );
-  if (!previous) return 0;
-
-  const distanceTotalTrecho = fueling.kmCurrent - previous.kmCurrent;
-  if (distanceTotalTrecho <= 0 || fueling.liters <= 0) return 0;
-
-  return round2(distanceTotalTrecho / fueling.liters);
-}
-
-interface AllocationResult {
-  allocatedValue: number | null;
-  originalTotalValue: number | null;
-  previousTripId: string | null;
-  previousTripCost: number;
-}
-
-async function calculateCostAllocation(
-  vehicleId: string,
-  currentTripId: string,
-  fueling: { kmCurrent: number; liters: number; totalValue: number },
-  pricePerLiter: number,
-): Promise<AllocationResult> {
-  const noAlloc: AllocationResult = {
-    allocatedValue: null,
-    originalTotalValue: null,
-    previousTripId: null,
-    previousTripCost: 0,
-  };
-
-  if (fueling.liters <= 0 || fueling.totalValue <= 0) return noAlloc;
-
-  const previous = await getLastVehicleFullTankFueling(
-    vehicleId,
-    fueling.kmCurrent,
-  );
-  if (!previous) return noAlloc;
-
-  const distanceTotalTrecho = fueling.kmCurrent - previous.kmCurrent;
-  if (distanceTotalTrecho <= 0) return noAlloc;
-
-  const mediaReal = distanceTotalTrecho / fueling.liters;
-  if (mediaReal <= 0) return noAlloc;
-
-  const [{ data: currentFreights }, { data: currentFuelings }] =
+  const [{ data: freights, error: freightsError }, { data: fuelings, error: fuelingsError }] =
     await Promise.all([
       supabase
         .from("freights")
-        .select("km_initial")
-        .eq("trip_id", currentTripId)
-        .order("km_initial", { ascending: true })
-        .limit(1),
+        .select("id,trip_id,origin,destination,km_initial,gross_value,commission_percent,commission_value,status,estimated_distance,created_at")
+        .in("trip_id", tripIds),
       supabase
         .from("fuelings")
-        .select("km_current")
-        .eq("trip_id", currentTripId)
-        .order("km_current", { ascending: true })
-        .limit(1),
+        .select("id,trip_id,station,total_value,liters,km_current,full_tank,date,receipt_url,original_total_value")
+        .in("trip_id", tripIds),
     ]);
 
-  const freightStartKm =
-    currentFreights?.[0]?.km_initial ?? Number.POSITIVE_INFINITY;
-  const fuelingStartKm =
-    currentFuelings?.[0]?.km_current ?? Number.POSITIVE_INFINITY;
-  const tripStartKm = Math.min(
-    freightStartKm,
-    fuelingStartKm,
-    fueling.kmCurrent,
-  );
-
-  const kmViagemAtual = Math.max(0, fueling.kmCurrent - tripStartKm);
-
-  // Sem cruzamento entre viagens: 100% do custo fica na viagem atual
-  if (previous.kmCurrent >= tripStartKm || previous.tripId === currentTripId) {
-    return {
-      allocatedValue: round2(fueling.totalValue),
-      originalTotalValue: null,
-      previousTripId: null,
-      previousTripCost: 0,
-    };
+  if (freightsError) {
+    throw new Error(freightsError.message || "Falha ao carregar fretes para revisar combustível.");
   }
 
-  const litrosViagemAtual = Math.min(fueling.liters, kmViagemAtual / mediaReal);
-  const custoRateadoAtual = round2(litrosViagemAtual * pricePerLiter);
-  const custoViagemAnterior = round2(
-    Math.max(0, fueling.totalValue - custoRateadoAtual),
-  );
+  if (fuelingsError) {
+    throw new Error(fuelingsError.message || "Falha ao carregar abastecimentos do veículo.");
+  }
+
+  const freightsByTrip = new Map<string, Freight[]>();
+  (freights || []).forEach((freight) => {
+    const normalized: Freight = {
+      id: freight.id,
+      tripId: freight.trip_id,
+      origin: freight.origin,
+      destination: freight.destination,
+      kmInitial: freight.km_initial,
+      grossValue: freight.gross_value,
+      commissionPercent: freight.commission_percent,
+      commissionValue: freight.commission_value,
+      status: (freight.status || "planned") as FreightStatus,
+      estimatedDistance: freight.estimated_distance || 0,
+      createdAt: freight.created_at,
+    };
+
+    if (!freightsByTrip.has(freight.trip_id)) freightsByTrip.set(freight.trip_id, []);
+    freightsByTrip.get(freight.trip_id)!.push(normalized);
+  });
+
+  const fuelingsByTrip = new Map<string, Fueling[]>();
+  (fuelings || []).forEach((fueling) => {
+    const normalized: Fueling = {
+      id: fueling.id,
+      tripId: fueling.trip_id,
+      stationName: fueling.station,
+      totalValue: fueling.total_value,
+      liters: fueling.liters,
+      pricePerLiter: 0,
+      kmCurrent: fueling.km_current,
+      fullTank: fueling.full_tank ?? true,
+      average: 0,
+      date: fueling.date,
+      receiptUrl: fueling.receipt_url || undefined,
+      originalTotalValue: fueling.original_total_value ?? undefined,
+    };
+
+    if (!fuelingsByTrip.has(fueling.trip_id)) fuelingsByTrip.set(fueling.trip_id, []);
+    fuelingsByTrip.get(fueling.trip_id)!.push(normalized);
+  });
+
+  const trips: Trip[] = (vehicleTrips || []).map((trip) => ({
+    id: trip.id,
+    vehicleId,
+    status: trip.status as TripStatus,
+    freights: normalizeTripFreights(freightsByTrip.get(trip.id) || []),
+    fuelings: fuelingsByTrip.get(trip.id) || [],
+    expenses: [],
+    personalExpenses: [],
+    createdAt: trip.created_at,
+    finishedAt: trip.finished_at,
+    estimatedDistance: trip.estimated_distance || 0,
+  }));
 
   return {
-    allocatedValue: custoRateadoAtual,
-    originalTotalValue: round2(fueling.totalValue),
-    previousTripId: custoViagemAnterior > 0 ? previous.tripId : null,
-    previousTripCost: custoViagemAnterior,
+    trips,
+    tripIds,
+    fuelings: fuelings || [],
   };
 }
 
@@ -458,6 +451,197 @@ function showWarnings(warnings: string[]) {
   warnings.forEach((warning) => {
     toast({ title: "Confere esse número rapidinho", description: warning });
   });
+}
+
+async function reprocessVehicleFuelings(params: {
+  userId: string;
+  vehicleId: string;
+}) {
+  const snapshot = await getVehicleFuelingSnapshot(params.vehicleId);
+  if (snapshot.tripIds.length === 0) return;
+
+  const tripStartKmMap = buildTripStartKmMap(snapshot.trips);
+  const financialPlan = buildFuelingFinancialPlan({
+    fuelings: snapshot.fuelings.map((fueling) => ({
+      id: fueling.id,
+      tripId: fueling.trip_id,
+      stationName: fueling.station,
+      totalValue: getFuelingOriginalTotalValue({
+        totalValue: fueling.total_value,
+        originalTotalValue: fueling.original_total_value,
+      }),
+      liters: fueling.liters,
+      kmCurrent: fueling.km_current,
+      fullTank: fueling.full_tank ?? true,
+      date: fueling.date,
+      receiptUrl: fueling.receipt_url,
+      originalTotalValue: fueling.original_total_value,
+    })),
+    tripStartKmMap,
+  });
+
+  const fuelingIds = snapshot.fuelings.map((fueling) => fueling.id);
+  if (fuelingIds.length > 0) {
+    await ensureMutation(
+      supabase.from("expenses").delete().in("source_fueling_id", fuelingIds),
+      "Falha ao limpar rateios anteriores do combustível.",
+    );
+  }
+
+  for (const computed of financialPlan) {
+    await ensureMutation(
+      supabase
+        .from("fuelings")
+        .update({
+          total_value: computed.effectiveTripValue,
+          price_per_liter: computed.pricePerLiter,
+          average: computed.average,
+          allocated_value: computed.allocatedValue,
+          original_total_value: computed.originalTotalValue,
+        })
+        .eq("id", computed.id),
+      "Falha ao recalcular um abastecimento do veículo.",
+    );
+  }
+
+  const rateioExpenses = financialPlan.flatMap((computed) =>
+    computed.rateioExpenses.map((expense) => ({
+      trip_id: expense.tripId,
+      user_id: params.userId,
+      category: "combustivel_rateio",
+      description: expense.description,
+      value: expense.value,
+      date: expense.date,
+      source_fueling_id: expense.sourceFuelingId,
+    })),
+  );
+
+  if (rateioExpenses.length > 0) {
+    await ensureMutation(
+      supabase.from("expenses").insert(rateioExpenses),
+      "Falha ao recriar os rateios do combustível.",
+    );
+  }
+}
+
+interface FuelingInputData {
+  stationName: string;
+  totalValue: number;
+  liters: number;
+  kmCurrent: number;
+  date: string;
+  fullTank: boolean;
+  receiptUrl?: string;
+}
+
+async function getTripVehicleId(tripId: string) {
+  const { data, error } = await supabase
+    .from("trips")
+    .select("vehicle_id")
+    .eq("id", tripId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Falha ao localizar o veículo da viagem.");
+  }
+
+  if (!data?.vehicle_id) {
+    throw new Error("Viagem não encontrada para este abastecimento.");
+  }
+
+  return data.vehicle_id as string;
+}
+
+async function persistFuelingAdd(params: {
+  userId: string;
+  tripId: string;
+  fuelingId: string;
+  fueling: FuelingInputData;
+}) {
+  const originalTotalValue = round2(params.fueling.totalValue);
+  const vehicleId = await getTripVehicleId(params.tripId);
+
+  await ensureMutation(
+    supabase.from("fuelings").insert({
+      id: params.fuelingId,
+      trip_id: params.tripId,
+      user_id: params.userId,
+      station: params.fueling.stationName,
+      total_value: originalTotalValue,
+      liters: params.fueling.liters,
+      price_per_liter: calculateFuelingPricePerLiter(
+        originalTotalValue,
+        params.fueling.liters,
+      ),
+      km_current: params.fueling.kmCurrent,
+      full_tank: params.fueling.fullTank,
+      average: 0,
+      date: params.fueling.date,
+      receipt_url: params.fueling.receiptUrl || null,
+      allocated_value: null,
+      original_total_value: null,
+    }),
+    "Falha ao salvar o abastecimento.",
+  );
+
+  await reprocessVehicleFuelings({ userId: params.userId, vehicleId });
+  await recalculateVehicleKm(vehicleId);
+}
+
+async function persistFuelingUpdate(params: {
+  userId: string;
+  tripId: string;
+  fuelingId: string;
+  fueling: FuelingInputData;
+}) {
+  const vehicleId = await getTripVehicleId(params.tripId);
+  const originalTotalValue = round2(params.fueling.totalValue);
+
+  await ensureMutation(
+    supabase
+      .from("fuelings")
+      .update({
+        station: params.fueling.stationName,
+        total_value: originalTotalValue,
+        liters: params.fueling.liters,
+        price_per_liter: calculateFuelingPricePerLiter(
+          originalTotalValue,
+          params.fueling.liters,
+        ),
+        km_current: params.fueling.kmCurrent,
+        full_tank: params.fueling.fullTank,
+        average: 0,
+        date: params.fueling.date,
+        receipt_url: params.fueling.receiptUrl || null,
+        allocated_value: null,
+        original_total_value: null,
+      })
+      .eq("id", params.fuelingId),
+    "Falha ao atualizar o abastecimento.",
+  );
+
+  await reprocessVehicleFuelings({ userId: params.userId, vehicleId });
+  await recalculateVehicleKm(vehicleId);
+}
+
+async function persistFuelingDelete(params: {
+  userId: string;
+  tripId: string;
+  fuelingId: string;
+}) {
+  const vehicleId = await getTripVehicleId(params.tripId);
+
+  await ensureMutation(
+    supabase.from("expenses").delete().eq("source_fueling_id", params.fuelingId),
+    "Falha ao limpar rateios ligados a este abastecimento.",
+  );
+  await ensureMutation(
+    supabase.from("fuelings").delete().eq("id", params.fuelingId),
+    "Falha ao excluir o abastecimento.",
+  );
+
+  await reprocessVehicleFuelings({ userId: params.userId, vehicleId });
+  await recalculateVehicleKm(vehicleId);
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -739,6 +923,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           }),
         );
 
+        trips.forEach((trip) => {
+          trip.fuelings = sortFuelingsByTimeline(trip.fuelings);
+        });
+
         const maintenanceServices: MaintenanceService[] = (
           maintRes.data || []
         ).map(
@@ -801,9 +989,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                 .insert({ ...action.payload, user_id: user.id });
               break;
             case "addFueling":
-              await supabase
-                .from("fuelings")
-                .insert({ ...action.payload, user_id: user.id });
+              await persistFuelingAdd({
+                userId: user.id,
+                tripId: action.payload.trip_id,
+                fuelingId: action.payload.id,
+                fueling: {
+                  stationName: action.payload.station,
+                  totalValue: action.payload.total_value,
+                  liters: action.payload.liters,
+                  kmCurrent: action.payload.km_current,
+                  date: action.payload.date,
+                  fullTank: action.payload.full_tank ?? true,
+                  receiptUrl: action.payload.receipt_url || undefined,
+                },
+              });
+              break;
+            case "updateFueling":
+              await persistFuelingUpdate({
+                userId: user.id,
+                tripId: action.payload.trip_id,
+                fuelingId: action.payload.id,
+                fueling: {
+                  stationName: action.payload.station,
+                  totalValue: action.payload.total_value,
+                  liters: action.payload.liters,
+                  kmCurrent: action.payload.km_current,
+                  date: action.payload.date,
+                  fullTank: action.payload.full_tank ?? true,
+                  receiptUrl: action.payload.receipt_url || undefined,
+                },
+              });
               break;
             case "addPersonalExpense":
               await supabase
@@ -865,14 +1080,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
               break;
             }
             case "deleteFueling":
-              await supabase
-                .from("expenses")
-                .delete()
-                .eq("source_fueling_id", action.payload.id);
-              await supabase
-                .from("fuelings")
-                .delete()
-                .eq("id", action.payload.id);
+              await persistFuelingDelete({
+                userId: user.id,
+                tripId: action.payload.trip_id,
+                fuelingId: action.payload.id,
+              });
               break;
             case "deleteExpense":
               await supabase
@@ -1849,16 +2061,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
+      const fuelingId = crypto.randomUUID();
+      const pricePerLiter = calculateFuelingPricePerLiter(f.totalValue, f.liters);
+
       if (!isOnline()) {
-        const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
         addToOfflineQueue({
           type: "addFueling",
           payload: {
+            id: fuelingId,
             trip_id: tripId,
             station: f.stationName,
             total_value: f.totalValue,
             liters: f.liters,
-            price_per_liter: Math.round(pricePerLiter * 100) / 100,
+            price_per_liter: pricePerLiter,
             km_current: f.kmCurrent,
             full_tank: f.fullTank,
             average: 0,
@@ -1870,8 +2085,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
-      const roundedPPL = round2(pricePerLiter);
       const trip = data.trips.find((t) => t.id === tripId);
       const vehicleId = trip?.vehicleId || "";
 
@@ -1897,73 +2110,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         getNumericWarnings({
           totalValue: f.totalValue,
           liters: f.liters,
-          pricePerLiter: roundedPPL,
+          pricePerLiter,
         }),
       );
 
-      const average = vehicleId
-        ? await calculateFuelingAverage(vehicleId, f)
-        : 0;
-      const allocation =
-        vehicleId && f.fullTank
-          ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL)
-          : null;
-
-      const effectiveCurrentTripCost =
-        allocation?.allocatedValue ?? round2(f.totalValue);
-
-      await supabase.from("fuelings").insert({
-        trip_id: tripId,
-        user_id: user.id,
-        station: f.stationName,
-        total_value: effectiveCurrentTripCost,
-        liters: f.liters,
-        price_per_liter: roundedPPL,
-        km_current: f.kmCurrent,
-        full_tank: f.fullTank,
-        average,
-        date: f.date,
-        receipt_url: f.receiptUrl || null,
-        allocated_value: allocation?.allocatedValue ?? null,
-        original_total_value: allocation?.originalTotalValue ?? null,
-      });
-
-      // Get the inserted fueling ID to link rateio expenses
-      const { data: insertedFueling } = await supabase
-        .from("fuelings")
-        .select("id")
-        .eq("trip_id", tripId)
-        .eq("user_id", user.id)
-        .eq("km_current", f.kmCurrent)
-        .eq("date", f.date)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const sourceFuelingId = insertedFueling?.[0]?.id || null;
-
-      // Se houve rateio entre viagens, lança retroativamente na viagem anterior
-      if (
-        allocation?.originalTotalValue != null &&
-        allocation.previousTripId &&
-        allocation.previousTripCost > 0
-      ) {
-        await supabase.from("expenses").insert({
-          trip_id: allocation.previousTripId,
-          user_id: user.id,
-          category: "combustivel_rateio",
-          description: `Rateio combustível - ${f.stationName}`,
-          value: allocation.previousTripCost,
-          date: f.date,
-          source_fueling_id: sourceFuelingId,
+      try {
+        await persistFuelingAdd({
+          userId: user.id,
+          tripId,
+          fuelingId,
+          fueling: {
+            stationName: f.stationName,
+            totalValue: f.totalValue,
+            liters: f.liters,
+            kmCurrent: f.kmCurrent,
+            date: f.date,
+            fullTank: f.fullTank,
+            receiptUrl: f.receiptUrl,
+          },
         });
+        await fetchData();
+        showActionSuccess(
+          "Abastecimento salvo",
+          "O custo, a média e os rateios ligados a este tanque foram revisados.",
+        );
+      } catch (error) {
+        showActionError(
+          "Não foi possível salvar o abastecimento",
+          error instanceof Error ? error.message : "Tenta novamente.",
+        );
       }
-
-      if (trip) {
-        await updateVehicleKm(trip.vehicleId, f.kmCurrent);
-      }
-      await fetchData();
-      showActionSuccess("Abastecimento salvo");
     },
-    [user, data.trips, fetchData, updateVehicleKm],
+    [user, data.trips, fetchData],
   );
 
   const updateFueling = useCallback(
@@ -1996,8 +2174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         showActionError("Não foi possível salvar agora", message);
         return;
       }
-      const pricePerLiter = f.liters > 0 ? f.totalValue / f.liters : 0;
-      const roundedPPL = Math.round(pricePerLiter * 100) / 100;
+      const pricePerLiter = calculateFuelingPricePerLiter(f.totalValue, f.liters);
       const trip = data.trips.find((t) => t.id === tripId);
       const vehicleId = trip?.vehicleId || "";
       if (vehicleId) {
@@ -2024,92 +2201,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         getNumericWarnings({
           totalValue: f.totalValue,
           liters: f.liters,
-          pricePerLiter: roundedPPL,
+          pricePerLiter,
         }),
       );
 
-      const average = vehicleId
-        ? await calculateFuelingAverage(vehicleId, f)
-        : 0;
-      const allocation =
-        vehicleId && f.fullTank
-          ? await calculateCostAllocation(vehicleId, tripId, f, roundedPPL)
-          : null;
-      const effectiveCurrentTripCost =
-        allocation?.allocatedValue ?? round2(f.totalValue);
-
-      // Delete old rateio expenses linked to this fueling
-      await supabase
-        .from("expenses")
-        .delete()
-        .eq("source_fueling_id", fuelingId);
-
-      await supabase
-        .from("fuelings")
-        .update({
-          station: f.stationName,
-          total_value: effectiveCurrentTripCost,
-          liters: f.liters,
-          price_per_liter: roundedPPL,
-          km_current: f.kmCurrent,
-          full_tank: f.fullTank,
-          average,
-          date: f.date,
-          receipt_url: f.receiptUrl || null,
-          allocated_value: allocation?.allocatedValue ?? null,
-          original_total_value: allocation?.originalTotalValue ?? null,
-        })
-        .eq("id", fuelingId);
-
-      // Re-create rateio expense if needed
-      if (
-        allocation?.originalTotalValue != null &&
-        allocation.previousTripId &&
-        allocation.previousTripCost > 0
-      ) {
-        await supabase.from("expenses").insert({
-          trip_id: allocation.previousTripId,
-          user_id: user.id,
-          category: "combustivel_rateio",
-          description: `Rateio combustível - ${f.stationName}`,
-          value: allocation.previousTripCost,
-          date: f.date,
-          source_fueling_id: fuelingId,
+      if (!isOnline()) {
+        addToOfflineQueue({
+          type: "updateFueling",
+          payload: {
+            id: fuelingId,
+            trip_id: tripId,
+            station: f.stationName,
+            total_value: f.totalValue,
+            liters: f.liters,
+            price_per_liter: pricePerLiter,
+            km_current: f.kmCurrent,
+            full_tank: f.fullTank,
+            average: 0,
+            date: f.date,
+            receipt_url: f.receiptUrl || null,
+          },
         });
+        showOfflineSaved("Abastecimento atualizado");
+        return;
       }
 
-      if (trip) {
-        await recalculateVehicleKm(trip.vehicleId);
+      try {
+        await persistFuelingUpdate({
+          userId: user.id,
+          tripId,
+          fuelingId,
+          fueling: {
+            stationName: f.stationName,
+            totalValue: f.totalValue,
+            liters: f.liters,
+            kmCurrent: f.kmCurrent,
+            date: f.date,
+            fullTank: f.fullTank,
+            receiptUrl: f.receiptUrl,
+          },
+        });
+        await fetchData();
+        showActionSuccess(
+          "Abastecimento atualizado",
+          "O sistema refez média, rateio e impacto financeiro deste abastecimento.",
+        );
+      } catch (error) {
+        showActionError(
+          "Não foi possível atualizar o abastecimento",
+          error instanceof Error ? error.message : "Tenta novamente.",
+        );
       }
-      await fetchData();
-      showActionSuccess("Abastecimento atualizado");
     },
     [user, data.trips, fetchData],
   );
 
   const deleteFueling = useCallback(
     async (tripId: string, fuelingId: string) => {
+      if (!user) return;
       if (!isOnline()) {
         addToOfflineQueue({
           type: "deleteFueling",
-          payload: { id: fuelingId },
+          payload: { id: fuelingId, trip_id: tripId },
         });
         showOfflineSaved("Abastecimento excluído");
         return;
       }
-      const trip = data.trips.find((t) => t.id === tripId);
-      const vehicleId = trip?.vehicleId;
-      await supabase
-        .from("expenses")
-        .delete()
-        .eq("source_fueling_id", fuelingId);
-      await supabase.from("fuelings").delete().eq("id", fuelingId);
-      if (vehicleId) {
-        await recalculateVehicleKm(vehicleId);
+
+      try {
+        await persistFuelingDelete({
+          userId: user.id,
+          tripId,
+          fuelingId,
+        });
+        await fetchData();
+        showActionSuccess(
+          "Abastecimento excluído",
+          "Os ajustes de custo, média, rateio e odômetro foram refeitos.",
+        );
+      } catch (error) {
+        showActionError(
+          "Não foi possível excluir o abastecimento",
+          error instanceof Error ? error.message : "Tenta novamente.",
+        );
       }
-      await fetchData();
     },
-    [data.trips, fetchData],
+    [fetchData, user],
   );
 
   const addExpense = useCallback(

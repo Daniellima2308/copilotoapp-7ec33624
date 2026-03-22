@@ -164,7 +164,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                           <p className="text-xs font-semibold text-profit flex items-center gap-1">
                             Média: {formatNumber(f.average)} km/l
                             <span
-                              title="Média calculada usando o último abastecimento completo do veículo"
+                              title="Média calculada comparando este tanque cheio com o último tanque cheio válido do veículo"
                               className="cursor-help text-muted-foreground"
                               aria-label="Informação sobre a média"
                             >
@@ -177,7 +177,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return (
                           <div>
                             <p className="text-xs font-semibold text-info">Marco Zero</p>
-                            <p className="text-[10px] italic text-muted-foreground">A média ainda não está disponível. Ela aparece depois de abastecimentos suficientes para comparar KM e litros.</p>
+                            <p className="text-[10px] italic text-muted-foreground">A média ainda não aparece porque falta um tanque cheio anterior válido para comparar KM e litros.</p>
                           </div>
                         );
                       }
@@ -185,7 +185,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
                         return <p className="text-xs font-semibold text-profit">Média: {formatNumber(f.average)} km/l</p>;
                       }
                       if (!isFullTank) {
-                        return <p className="text-xs text-warning">A média aparece depois de um abastecimento completo.</p>;
+                        return <p className="text-xs text-warning">Este lançamento entrou no custo, mas a média só fecha depois de um tanque cheio válido.</p>;
                       }
                       return null;
                     })()}
@@ -206,7 +206,7 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
               {isProrated && (
                 <div className="mt-2 px-2 py-1.5 rounded-md bg-accent/50 border border-border/50">
                   <p className="text-[10px] text-muted-foreground leading-tight">
-                    Valor rateado entre viagens. Total na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span> | Média: <span className="font-semibold">{formatNumber(f.average)} km/l</span>
+                    Este abastecimento cruzou mais de uma viagem. Nesta viagem ficou <span className="font-semibold">{formatCurrency(displayValue)}</span>. Total pago na bomba: <span className="font-semibold">{formatCurrency(f.originalTotalValue!)}</span>.
                   </p>
                 </div>
               )}
@@ -241,7 +241,9 @@ export function FuelTab({ trip, isOpen, addFueling, updateFueling, deleteFueling
       }}
       onConfirm={handleDeleteFueling}
       title="Excluir abastecimento?"
-      description="Essa ação remove este abastecimento dos lançamentos."
+      description={fuelingToDelete?.allocatedValue != null && fuelingToDelete?.originalTotalValue != null
+        ? "Esse abastecimento também ajustou custos de outras viagens. Ao excluir, o app vai retirar esses ajustes, refazer a média e revisar o odômetro do veículo."
+        : "Ao excluir, o app remove este lançamento, refaz a média que depender dele e revisa o odômetro do veículo."}
       isLoading={isDeletingFueling}
     />
     </>

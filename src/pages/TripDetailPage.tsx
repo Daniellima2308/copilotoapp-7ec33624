@@ -810,8 +810,8 @@ const TripDetailPage = () => {
               }
               helperText={
                 avgConsumption > 0
-                  ? "Média calculada com dados reais."
-                  : "A média aparece com abastecimentos suficientes."
+                  ? "Média consolidada com tanques cheios válidos e peso maior para quem consumiu mais litros."
+                  : "A média aparece quando já existe base segura entre tanques cheios."
               }
               onClick={() =>
                 setActiveDetail({
@@ -822,8 +822,8 @@ const TripDetailPage = () => {
                       : "Aguardando",
                   description:
                     avgConsumption > 0
-                      ? "A média aparece com base nos abastecimentos completos já lançados."
-                      : "Média ainda não disponível. Ela aparece depois de abastecimentos suficientes.",
+                      ? "Essa média consolidada usa apenas abastecimentos completos com base válida e pondera os litros consumidos para evitar distorção."
+                      : "Média ainda não disponível. Ela aparece quando já existe um tanque cheio anterior válido para comparação.",
                 })
               }
             />

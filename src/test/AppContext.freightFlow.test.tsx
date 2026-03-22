@@ -654,4 +654,183 @@ describe("AppContext freight flow", () => {
     expect(dbState.vehicles[0]).toMatchObject({ current_km: 680 });
     unmount();
   });
+
+  it("finaliza viagem concluindo frete em andamento e tirando planned do consolidado final", async () => {
+    dbState.trips[0].estimated_distance = 4177;
+    dbState.freights = [
+      {
+        id: "active-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        origin: "Campinas",
+        destination: "Curitiba",
+        km_initial: 1000,
+        gross_value: 2000,
+        commission_percent: 10,
+        commission_value: 200,
+        status: "in_progress",
+        estimated_distance: 1138,
+        created_at: now,
+      },
+      {
+        id: "planned-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        origin: "Curitiba",
+        destination: "Porto Alegre",
+        km_initial: 0,
+        gross_value: 5000,
+        commission_percent: 10,
+        commission_value: 500,
+        status: "planned",
+        estimated_distance: 3039,
+        created_at: "2026-03-18T13:00:00.000Z",
+      },
+    ];
+    dbState.fuelings = [
+      {
+        id: "fuel-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        station_name: "Posto",
+        total_value: 500,
+        liters: 100,
+        km_current: 1800,
+        price_per_liter: 5,
+        average: 4.5,
+        full_tank: false,
+        date: now,
+      },
+    ];
+
+    const { app, unmount } = await renderApp();
+
+    const resultWithoutConfirmation = await app.finishTrip("trip-1", {
+      arrivalKm: 2400,
+    });
+
+    expect(resultWithoutConfirmation).toEqual({
+      autoCompletedFreightId: "active-1",
+      pendingPlannedFreights: 1,
+    });
+    expect(dbState.trips[0]).toMatchObject({ status: "open" });
+
+    const result = await app.finishTrip("trip-1", {
+      arrivalKm: 2400,
+      allowPendingPlanned: true,
+    });
+
+    expect(result).toEqual({
+      autoCompletedFreightId: "active-1",
+      pendingPlannedFreights: 1,
+    });
+    expect(dbState.freights).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "active-1", status: "completed" }),
+        expect.objectContaining({ id: "planned-1", status: "planned" }),
+      ]),
+    );
+    expect(dbState.trips[0]).toMatchObject({
+      status: "finished",
+      estimated_distance: 1400,
+    });
+    expect(dbState.vehicles[0]).toMatchObject({ current_km: 2400 });
+    expect(sharedMocks.toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Viagem finalizada",
+        description:
+          "Frete em andamento concluído. Trechos não iniciados ficaram fora do consolidado final da viagem.",
+      }),
+    );
+    unmount();
+  });
+
+
+  it("calcula o snapshot final com KM inicial zero sem tratar zero como ausência de checkpoint", async () => {
+    dbState.freights = [
+      {
+        id: "active-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        origin: "A",
+        destination: "B",
+        km_initial: 0,
+        gross_value: 1000,
+        commission_percent: 10,
+        commission_value: 100,
+        status: "in_progress",
+        estimated_distance: 200,
+        created_at: now,
+      },
+    ];
+
+    const { app, unmount } = await renderApp();
+
+    await app.finishTrip("trip-1", {
+      arrivalKm: 1200,
+      allowPendingPlanned: true,
+    });
+
+    expect(dbState.trips[0]).toMatchObject({
+      status: "finished",
+      estimated_distance: 1200,
+    });
+    unmount();
+  });
+
+  it("bloqueia finalização com KM de chegada abaixo do maior KM real da operação", async () => {
+    dbState.freights = [
+      {
+        id: "active-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        origin: "A",
+        destination: "B",
+        km_initial: 1000,
+        gross_value: 1000,
+        commission_percent: 10,
+        commission_value: 100,
+        status: "in_progress",
+        estimated_distance: 200,
+        created_at: now,
+      },
+    ];
+    dbState.fuelings = [
+      {
+        id: "fuel-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        station_name: "Posto",
+        total_value: 500,
+        liters: 100,
+        km_current: 1650,
+        price_per_liter: 5,
+        average: 4.5,
+        full_tank: false,
+        date: now,
+      },
+    ];
+
+    const { app, unmount } = await renderApp();
+
+    const result = await app.finishTrip("trip-1", {
+      arrivalKm: 1500,
+      allowPendingPlanned: true,
+    });
+
+    expect(result).toEqual({
+      autoCompletedFreightId: "active-1",
+      pendingPlannedFreights: 0,
+    });
+    expect(dbState.trips[0]).toMatchObject({ status: "open", finished_at: null });
+    expect(sharedMocks.toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Não foi possível finalizar a viagem",
+        description:
+          "O KM de chegada não pode ficar abaixo de 1.650 km, que é o maior KM real já lançado nesta operação.",
+        variant: "destructive",
+      }),
+    );
+    unmount();
+  });
 });

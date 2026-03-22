@@ -18,8 +18,25 @@ export function ActiveTripCard({ trip }: ActiveTripCardProps) {
   const lastDest = getLastDestination(trip);
   const [showFinishModal, setShowFinishModal] = useState(false);
 
-  const handleFinish = async (km: number) => {
-    await finishTrip(trip.id, km);
+  const operationalMaxKm = Math.max(
+    vehicle?.currentKm || 0,
+    ...trip.fuelings.map((fueling) => fueling.kmCurrent || 0),
+    ...trip.freights
+      .filter((freight) => freight.status === "in_progress" || freight.status === "completed")
+      .map((freight) => freight.kmInitial || 0),
+  );
+
+  const handleFinish = async ({
+    km,
+    allowPendingPlanned,
+  }: {
+    km: number;
+    allowPendingPlanned: boolean;
+  }) => {
+    await finishTrip(trip.id, {
+      arrivalKm: km,
+      allowPendingPlanned,
+    });
     setShowFinishModal(false);
   };
 
@@ -64,8 +81,15 @@ export function ActiveTripCard({ trip }: ActiveTripCardProps) {
       <FinishTripModal
         open={showFinishModal}
         onClose={() => setShowFinishModal(false)}
-        minKm={vehicle?.currentKm || 0}
+        minKm={operationalMaxKm}
         activeFreight={trip.freights?.find(f => f.status === "in_progress") ? { origin: trip.freights.find(f => f.status === "in_progress")!.origin, destination: trip.freights.find(f => f.status === "in_progress")!.destination } : null}
+        pendingFreights={trip.freights
+          .filter((freight) => freight.status === "planned")
+          .map((freight) => ({
+            id: freight.id,
+            origin: freight.origin,
+            destination: freight.destination,
+          }))}
         onConfirm={handleFinish}
       />
     </>

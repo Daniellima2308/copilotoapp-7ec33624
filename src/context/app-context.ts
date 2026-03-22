@@ -32,8 +32,14 @@ export interface AppContextType {
   addTrip: (vehicleId: string) => Promise<Trip>;
   finishTrip: (
     id: string,
-    arrivalKm?: number,
-  ) => Promise<{ autoCompletedFreightId?: string | null }>;
+    options?: {
+      arrivalKm?: number;
+      allowPendingPlanned?: boolean;
+    },
+  ) => Promise<{
+    autoCompletedFreightId?: string | null;
+    pendingPlannedFreights?: number;
+  }>;
   deleteTrip: (id: string) => Promise<void>;
   getActiveTrips: () => Trip[];
   addFreight: (

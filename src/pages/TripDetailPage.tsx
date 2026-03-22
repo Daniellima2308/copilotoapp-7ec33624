@@ -17,6 +17,8 @@ import {
   getTripTotalCommissionsToDate,
   getTripTotalExpenses,
   getTripTotalPersonalExpenses,
+  getTripFreightEstimatedKmTotal,
+  getTripFinalDistanceSnapshot,
   formatCurrency,
   formatNumber,
 } from "@/lib/calculations";
@@ -242,6 +244,15 @@ const TripDetailPage = () => {
   const kmBasisToDate = getTripKmBasisToDate(trip);
   const kmBasisTotal = getTripKmBasisTotal(trip);
   const currentKmBasis = isOpen ? kmBasisToDate : kmBasisTotal;
+  const freightEstimatedKmTotal = getTripFreightEstimatedKmTotal(trip);
+  const finalDistanceSnapshot = getTripFinalDistanceSnapshot(trip);
+  const operationMinFinishKm = Math.max(
+    vehicle?.currentKm || 0,
+    ...trip.fuelings.map((fueling) => fueling.kmCurrent || 0),
+    ...trip.freights
+      .filter((freight) => freight.status === "in_progress" || freight.status === "completed")
+      .map((freight) => freight.kmInitial || 0),
+  );
   const hasRealKm = currentKmBasis.source === "actual" && currentKmBasis.km > 0;
   const hasEstimatedKm =
     currentKmBasis.source === "estimated" && currentKmBasis.km > 0;
@@ -400,21 +411,40 @@ const TripDetailPage = () => {
     {
       label: "Total da viagem",
       value: formatCurrency(netTotal),
-      description:
-        `Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos. Base de KM: ${
-          kmBasisTotal.source === "actual"
-            ? `${formatNumber(kmBasisTotal.km)} km reais`
-            : kmBasisTotal.source === "estimated"
-              ? `${formatNumber(kmBasisTotal.km)} km previstos da viagem inteira`
-              : "sem KM previsto suficiente"
-        }.`,
+      description: isOpen
+        ? `Projeta a viagem inteira, incluindo o que já está planejado para os próximos trechos. Base de KM: ${
+            kmBasisTotal.source === "actual"
+              ? `${formatNumber(kmBasisTotal.km)} km reais`
+              : kmBasisTotal.source === "estimated"
+                ? `${formatNumber(kmBasisTotal.km)} km previstos da viagem inteira`
+                : "sem KM previsto suficiente"
+          }.`
+        : `Mostra só o consolidado final da operação. Base de KM: ${
+            kmBasisTotal.source === "actual"
+              ? `${formatNumber(kmBasisTotal.km)} km reais do fechamento`
+              : kmBasisTotal.source === "estimated"
+                ? `${formatNumber(kmBasisTotal.km)} km estimados`
+                : "sem KM suficiente"
+          }.${freightEstimatedKmTotal > 0 ? ` Previsão original cadastrada: ${formatNumber(freightEstimatedKmTotal)} km.` : ""}`,
     },
   ];
 
-  const handleFinish = async (km: number) => {
+  const handleFinish = async ({
+    km,
+    allowPendingPlanned,
+  }: {
+    km: number;
+    allowPendingPlanned: boolean;
+  }) => {
     try {
       setIsFinishingTrip(true);
-      await finishTrip(trip.id, km);
+      const result = await finishTrip(trip.id, {
+        arrivalKm: km,
+        allowPendingPlanned,
+      });
+      if (result.pendingPlannedFreights && !allowPendingPlanned) {
+        return;
+      }
       setShowFinishModal(false);
       navigate("/");
     } finally {
@@ -1065,7 +1095,7 @@ const TripDetailPage = () => {
       <FinishTripModal
         open={showFinishModal}
         onClose={() => setShowFinishModal(false)}
-        minKm={vehicle?.currentKm || 0}
+        minKm={operationMinFinishKm}
         activeFreight={
           activeFreight
             ? {
@@ -1074,6 +1104,13 @@ const TripDetailPage = () => {
               }
             : null
         }
+        pendingFreights={trip.freights
+          .filter((freight) => freight.status === "planned")
+          .map((freight) => ({
+            id: freight.id,
+            origin: freight.origin,
+            destination: freight.destination,
+          }))}
         onConfirm={handleFinish}
         isSubmitting={isFinishingTrip}
       />

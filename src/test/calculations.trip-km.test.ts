@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  getTripCostPerKm,
   getTripCostPerKmToDate,
   getTripEstimatedKmTotal,
+  getTripFreightEstimatedKmTotal,
+  getTripActualKmTotal,
+  getTripGrossRevenue,
+  getTripLatestCheckpointKm,
   getTripKmBasisToDate,
   getTripKmBasisTotal,
+  getTripNetRevenue,
+  getTripProfitPerKm,
   getTripProfitPerKmToDate,
+  getTripTotalCommissions,
 } from "@/lib/calculations";
 import { Trip } from "@/types";
 
@@ -65,7 +73,7 @@ describe("trip KM basis", () => {
     expect(getTripCostPerKmToDate(tripBase)).toBe(0.35);
   });
 
-  it("mantém o total previsto incluindo trechos planejados", () => {
+  it("mantém o total previsto incluindo trechos planejados enquanto a viagem está aberta", () => {
     expect(getTripEstimatedKmTotal(tripBase)).toBe(4177);
     expect(getTripKmBasisTotal(tripBase)).toEqual({
       km: 4177,
@@ -108,5 +116,76 @@ describe("trip KM basis", () => {
       km: 1138,
       source: "actual",
     });
+  });
+
+
+  it("não mistura snapshot final de distância com checkpoint absoluto de odômetro", () => {
+    const finishedTrip: Trip = {
+      ...tripBase,
+      status: "finished",
+      estimatedDistance: 1000,
+      fuelings: [
+        {
+          id: "fueling-1",
+          tripId: "trip-1",
+          stationName: "Posto 1",
+          totalValue: 900,
+          liters: 300,
+          kmCurrent: 2400,
+          pricePerLiter: 3,
+          average: 0,
+          fullTank: true,
+          date: "2026-03-18",
+        },
+      ],
+      freights: [
+        { ...tripBase.freights[0], status: "completed" },
+      ],
+    };
+
+    expect(getTripActualKmTotal(finishedTrip)).toBe(1000);
+    expect(getTripKmBasisTotal(finishedTrip)).toEqual({
+      km: 1000,
+      source: "actual",
+    });
+    expect(getTripLatestCheckpointKm(finishedTrip)).toBe(2400);
+  });
+
+  it("usa o KM final consolidado na viagem finalizada e ignora frete planned nos números finais", () => {
+    const finishedTrip: Trip = {
+      ...tripBase,
+      status: "finished",
+      estimatedDistance: 1400,
+      fuelings: [
+        {
+          id: "fueling-1",
+          tripId: "trip-1",
+          stationName: "Posto 1",
+          totalValue: 900,
+          liters: 300,
+          kmCurrent: 2400,
+          pricePerLiter: 3,
+          average: 0,
+          fullTank: true,
+          date: "2026-03-18",
+        },
+      ],
+      freights: [
+        { ...tripBase.freights[0], status: "completed" },
+        tripBase.freights[1],
+      ],
+    };
+
+    expect(getTripFreightEstimatedKmTotal(finishedTrip)).toBe(4177);
+    expect(getTripEstimatedKmTotal(finishedTrip)).toBe(4177);
+    expect(getTripKmBasisTotal(finishedTrip)).toEqual({
+      km: 1400,
+      source: "actual",
+    });
+    expect(getTripGrossRevenue(finishedTrip)).toBe(2000);
+    expect(getTripTotalCommissions(finishedTrip)).toBe(200);
+    expect(getTripNetRevenue(finishedTrip)).toBe(700);
+    expect(getTripCostPerKm(finishedTrip)).toBe(0.93);
+    expect(getTripProfitPerKm(finishedTrip)).toBe(0.5);
   });
 });

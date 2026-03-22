@@ -4,7 +4,9 @@ import {
   getTripCostPerKmToDate,
   getTripEstimatedKmTotal,
   getTripFreightEstimatedKmTotal,
+  getTripActualKmTotal,
   getTripGrossRevenue,
+  getTripLatestCheckpointKm,
   getTripKmBasisToDate,
   getTripKmBasisTotal,
   getTripNetRevenue,
@@ -116,11 +118,44 @@ describe("trip KM basis", () => {
     });
   });
 
+
+  it("não mistura snapshot final de distância com checkpoint absoluto de odômetro", () => {
+    const finishedTrip: Trip = {
+      ...tripBase,
+      status: "finished",
+      estimatedDistance: 1000,
+      fuelings: [
+        {
+          id: "fueling-1",
+          tripId: "trip-1",
+          stationName: "Posto 1",
+          totalValue: 900,
+          liters: 300,
+          kmCurrent: 2400,
+          pricePerLiter: 3,
+          average: 0,
+          fullTank: true,
+          date: "2026-03-18",
+        },
+      ],
+      freights: [
+        { ...tripBase.freights[0], status: "completed" },
+      ],
+    };
+
+    expect(getTripActualKmTotal(finishedTrip)).toBe(1000);
+    expect(getTripKmBasisTotal(finishedTrip)).toEqual({
+      km: 1000,
+      source: "actual",
+    });
+    expect(getTripLatestCheckpointKm(finishedTrip)).toBe(2400);
+  });
+
   it("usa o KM final consolidado na viagem finalizada e ignora frete planned nos números finais", () => {
     const finishedTrip: Trip = {
       ...tripBase,
       status: "finished",
-      estimatedDistance: 2400,
+      estimatedDistance: 1400,
       fuelings: [
         {
           id: "fueling-1",

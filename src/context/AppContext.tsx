@@ -64,7 +64,7 @@ function getTripMaxRealKm(trip: Trip | undefined, vehicleCurrentKm = 0) {
 }
 
 function getTripStartKm(trip: Trip | undefined) {
-  if (!trip) return 0;
+  if (!trip) return null;
 
   const checkpoints = [
     ...trip.fuelings.map((fueling) => fueling.kmCurrent),
@@ -73,7 +73,7 @@ function getTripStartKm(trip: Trip | undefined) {
       .map((freight) => freight.kmInitial),
   ].filter((km): km is number => Number.isFinite(km) && km >= 0);
 
-  if (checkpoints.length === 0) return 0;
+  if (checkpoints.length === 0) return null;
   return Math.min(...checkpoints);
 }
 
@@ -1210,7 +1210,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             vehicleId: trip.vehicleId,
             activeFreightId: activeFreight?.id ?? null,
             finalTripDistance:
-              arrivalKm != null && tripStartKm > 0
+              arrivalKm != null && tripStartKm != null
                 ? Math.max(arrivalKm - tripStartKm, 0)
                 : trip.estimatedDistance,
           },
@@ -1284,7 +1284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       const finalTripDistance =
-        arrivalKm != null && tripStartKm > 0
+        arrivalKm != null && tripStartKm != null
           ? Math.max(arrivalKm - tripStartKm, 0)
           : trip.estimatedDistance;
 

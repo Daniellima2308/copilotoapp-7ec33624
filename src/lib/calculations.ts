@@ -81,14 +81,8 @@ export function getTripTotalKm(trip: Trip): number {
 
 export function getTripActualKmTotal(trip: Trip): number {
   if (trip.status === "finished") {
-    const finalizedFreights = getOperationalFreights(trip);
-    const checkpoints = [
-      ...trip.fuelings.map((f) => f.kmCurrent),
-      ...finalizedFreights.map((f) => f.kmInitial),
-      trip.estimatedDistance,
-    ];
-
-    return getKmFromCheckpoints(checkpoints);
+    const finalDistanceSnapshot = getTripFinalDistanceSnapshot(trip);
+    if (finalDistanceSnapshot > 0) return finalDistanceSnapshot;
   }
 
   return getTripActualKmToDate(trip);
@@ -98,9 +92,6 @@ export function getTripLatestCheckpointKm(trip: Trip): number {
   const checkpoints = [
     ...trip.fuelings.map((f) => f.kmCurrent),
     ...getOperationalFreights(trip).map((f) => f.kmInitial),
-    ...(trip.status === "finished" && trip.estimatedDistance > 0
-      ? [trip.estimatedDistance]
-      : []),
   ].filter((km) => km > 0);
 
   if (checkpoints.length === 0) return 0;

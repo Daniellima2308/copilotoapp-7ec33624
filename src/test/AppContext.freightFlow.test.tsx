@@ -745,6 +745,39 @@ describe("AppContext freight flow", () => {
     unmount();
   });
 
+
+  it("calcula o snapshot final com KM inicial zero sem tratar zero como ausência de checkpoint", async () => {
+    dbState.freights = [
+      {
+        id: "active-1",
+        user_id: "user-1",
+        trip_id: "trip-1",
+        origin: "A",
+        destination: "B",
+        km_initial: 0,
+        gross_value: 1000,
+        commission_percent: 10,
+        commission_value: 100,
+        status: "in_progress",
+        estimated_distance: 200,
+        created_at: now,
+      },
+    ];
+
+    const { app, unmount } = await renderApp();
+
+    await app.finishTrip("trip-1", {
+      arrivalKm: 1200,
+      allowPendingPlanned: true,
+    });
+
+    expect(dbState.trips[0]).toMatchObject({
+      status: "finished",
+      estimated_distance: 1200,
+    });
+    unmount();
+  });
+
   it("bloqueia finalização com KM de chegada abaixo do maior KM real da operação", async () => {
     dbState.freights = [
       {

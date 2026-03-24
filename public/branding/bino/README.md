@@ -7,4 +7,7 @@ Pasta reservada para os assets oficiais do assistente/personagem do app.
 - `poses/` = poses derivadas por versão-base.
 - `expressions/` = expressões faciais e variações por versão-base.
 
-Regra: Bino é o assistente/personagem do app e não substitui a marca Sentinela.
+## Regra de marca
+- Bino é personagem/assistente do app.
+- Bino **não substitui** a marca principal Sentinela.
+- Não misturar assets do Bino com assets da Sentinela.

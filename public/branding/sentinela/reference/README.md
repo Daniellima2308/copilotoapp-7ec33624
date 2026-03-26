@@ -1,8 +1,15 @@
 # Sentinela / reference
 
-Armazena materiais de referência visual da marca Sentinela.
+Armazena materiais de referência visual e legado da marca Sentinela.
 
-Use preferencialmente a convenção oficial:
-`sentinela-reference-[variacao]-[cor].png`
+## Composição
+`reference = material de referência visual e legado`
 
-Arquivos legados podem permanecer aqui até migração completa de nomenclatura.
+## Convenção oficial
+`sentinela-reference-[variacao]-[versao].png`
+
+## Exemplo oficial
+- `sentinela-reference-oficial.png` (arquivo consolidado de referência)
+
+## Observação
+Arquivos legados podem permanecer nesta pasta para consulta histórica, sem substituir os assets oficiais de produção.

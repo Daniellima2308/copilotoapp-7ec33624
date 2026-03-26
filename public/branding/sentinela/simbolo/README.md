@@ -1,8 +1,18 @@
 # Sentinela / simbolo
 
-Armazena o símbolo da marca Sentinela em suas variações oficiais.
+Armazena o **símbolo** da marca Sentinela em suas versões oficiais.
 
-Use a convenção oficial:
-`sentinela-simbolo-[variacao]-[cor].png`
+## Composição
+`simbolo = símbolo sozinho, sem wordmark`
 
-Exemplo: `sentinela-simbolo-oficial-sem-icones-azul-claro.png`.
+## Convenção oficial
+`sentinela-simbolo-[variacao]-[versao].png`
+
+## Variações e versões esperadas
+- Variação principal: `oficial`
+- Versões: `institucional`, `branco`, `preto`
+
+## Exemplos
+- `sentinela-simbolo-oficial-institucional.png`
+- `sentinela-simbolo-oficial-branco.png`
+- `sentinela-simbolo-oficial-preto.png`

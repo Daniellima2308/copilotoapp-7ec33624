@@ -1,8 +1,18 @@
 # Sentinela / wordmark
 
-Armazena wordmarks oficiais da marca Sentinela (assinatura tipográfica).
+Armazena wordmarks oficiais da marca Sentinela.
 
-Use a convenção oficial:
+## Composição
+`wordmark = apenas SENTINELA`
+
+## Convenção oficial
 `sentinela-wordmark-[variacao]-[cor].png`
 
-Exemplo: `sentinela-wordmark-oficial-branco.png`.
+## Variações e cores esperadas
+- Variação principal: `oficial`
+- Cores oficiais: `azul-petroleo`, `branco`, `preto`
+
+## Exemplos
+- `sentinela-wordmark-oficial-azul-petroleo.png`
+- `sentinela-wordmark-oficial-branco.png`
+- `sentinela-wordmark-oficial-preto.png`

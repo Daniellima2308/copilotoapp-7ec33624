@@ -15,6 +15,35 @@ A marca principal evoluiu para um sistema visual composto por:
 - wordmark `SENTINELA`
 - slogan institucional: `Gestão e controle para caminhoneiros`
 
+## Regra híbrida oficial de nomenclatura
+A marca Sentinela usa dois padrões:
+
+1. Tipos que usam **`[versao]`**:
+   - `logo`
+   - `icone`
+   - `simbolo`
+   - `reference`
+
+   Padrão:
+   `sentinela-[tipo]-[variacao]-[versao].png`
+
+   Versões oficiais:
+   - `institucional`
+   - `branca`
+   - `preta`
+
+2. Tipos que usam **`[cor]`**:
+   - `wordmark`
+   - `slogan`
+
+   Padrão:
+   `sentinela-[tipo]-[variacao]-[cor].png`
+
+   Cores válidas:
+   - `azul-petroleo`
+   - `branco`
+   - `preto`
+
 ## Regras de separação
 - Não misturar assets da Sentinela com assets do Bino.
 - A convenção oficial da marca principal fica definida em `sentinela/README.md`.

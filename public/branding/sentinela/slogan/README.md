@@ -9,12 +9,16 @@ Frase institucional:
 `Gestão e controle para caminhoneiros`
 
 ## Convenção oficial
-`sentinela-slogan-[variacao]-[versao].png`
+`sentinela-slogan-[variacao]-[cor].png`
 
-## Variações e versões esperadas
+## Regra híbrida aplicada
+- `slogan` usa **`[cor]`** (não usa `[versao]`).
+- Cores válidas: `azul-petroleo`, `branco`, `preto`.
+
+## Variações e cores esperadas
 - Variação principal: `oficial`
-- Versões: `branco`, `preto`
+- Cores operacionais atuais: `branco`, `preto`
 
 ## Exemplos
-- `sentinela-slogan-oficial-preto.png`
 - `sentinela-slogan-oficial-branco.png`
+- `sentinela-slogan-oficial-preto.png`

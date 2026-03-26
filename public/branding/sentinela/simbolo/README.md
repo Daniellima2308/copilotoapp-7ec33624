@@ -8,11 +8,15 @@ Armazena o **símbolo** da marca Sentinela em suas versões oficiais.
 ## Convenção oficial
 `sentinela-simbolo-[variacao]-[versao].png`
 
+## Regra híbrida aplicada
+- `simbolo` usa **`[versao]`** (não usa `[cor]`).
+- Versões oficiais: `institucional`, `branca`, `preta`.
+
 ## Variações e versões esperadas
 - Variação principal: `oficial`
-- Versões: `institucional`, `branco`, `preto`
+- Versões: `institucional`, `branca`, `preta`
 
 ## Exemplos
 - `sentinela-simbolo-oficial-institucional.png`
-- `sentinela-simbolo-oficial-branco.png`
-- `sentinela-simbolo-oficial-preto.png`
+- `sentinela-simbolo-oficial-branca.png`
+- `sentinela-simbolo-oficial-preta.png`

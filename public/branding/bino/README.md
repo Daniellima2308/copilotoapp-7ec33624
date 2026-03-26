@@ -12,3 +12,7 @@ Pasta reservada para os assets oficiais do assistente/personagem do app.
 - Bino **não substitui** a marca principal Sentinela.
 - A marca principal oficial continua sendo a Sentinela.
 - Não misturar assets do Bino com assets da Sentinela.
+
+## Limite de escopo
+- Esta pasta não define nomenclatura oficial dos assets da marca Sentinela.
+- A regra híbrida oficial da marca principal deve ser seguida apenas em `public/branding/sentinela/`.

@@ -1,8 +1,16 @@
 # Sentinela / icone
 
-Armazena ícones da marca Sentinela para usos institucionais.
+Armazena o **ícone do app** da marca Sentinela.
 
-Use a convenção oficial:
-`sentinela-icone-[variacao]-[cor].png`
+## Composição
+`icone = símbolo dentro do quadrado arredondado escuro (uso principal em app)`
 
-Exemplo: `sentinela-icone-oficial-preto.png`.
+## Convenção oficial
+`sentinela-icone-[variacao]-[versao].png`
+
+## Variações e versões esperadas
+- Variação principal: `app`
+- Versão recomendada: `oficial`
+
+## Exemplo oficial
+- `sentinela-icone-app-oficial.png`

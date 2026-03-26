@@ -1,8 +1,20 @@
 # Sentinela / slogan
 
-Armazena versões de slogan da marca Sentinela.
+Armazena versões do slogan institucional da marca Sentinela.
 
-Use a convenção oficial:
-`sentinela-slogan-[variacao]-[cor].png`
+## Composição
+`slogan = apenas a frase institucional`
 
-Exemplo: `sentinela-slogan-oficial-preto.png`.
+Frase institucional:
+`Gestão e controle para caminhoneiros`
+
+## Convenção oficial
+`sentinela-slogan-[variacao]-[versao].png`
+
+## Variações e versões esperadas
+- Variação principal: `oficial`
+- Versões: `branco`, `preto`
+
+## Exemplos
+- `sentinela-slogan-oficial-preto.png`
+- `sentinela-slogan-oficial-branco.png`

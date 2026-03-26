@@ -1,8 +1,20 @@
 # Sentinela / logo
 
-Armazena versões de logo completas da marca Sentinela.
+Armazena versões de **logo** da marca Sentinela.
 
-Use a convenção oficial:
-`sentinela-logo-[variacao]-[cor].png`
+## Composição
+`logo = símbolo + wordmark`
 
-Exemplo: `sentinela-logo-oficial-com-icones-azul-petroleo.png`.
+## Convenção oficial
+`sentinela-logo-[variacao]-[versao].png`
+
+## Variações e versões esperadas
+- Variações: `oficial`, `com-slogan`
+- Versões: `institucional`, `branca`, `preta`
+
+## Exemplos
+- `sentinela-logo-oficial-institucional.png`
+- `sentinela-logo-oficial-branca.png`
+- `sentinela-logo-oficial-preta.png`
+- `sentinela-logo-com-slogan-institucional.png`
+- `sentinela-logo-com-slogan-branca.png`

@@ -10,4 +10,5 @@ Pasta reservada para os assets oficiais do assistente/personagem do app.
 ## Regra de marca
 - Bino é personagem/assistente do app.
 - Bino **não substitui** a marca principal Sentinela.
+- A marca principal oficial continua sendo a Sentinela.
 - Não misturar assets do Bino com assets da Sentinela.

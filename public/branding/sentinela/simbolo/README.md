@@ -10,9 +10,9 @@ Armazena o **símbolo** da marca Sentinela em suas versões oficiais.
 
 ## Variações e versões esperadas
 - Variação principal: `oficial`
-- Versões: `institucional`, `branco`, `preto`
+- Versões: `institucional`, `branca`, `preta`
 
 ## Exemplos
 - `sentinela-simbolo-oficial-institucional.png`
-- `sentinela-simbolo-oficial-branco.png`
-- `sentinela-simbolo-oficial-preto.png`
+- `sentinela-simbolo-oficial-branca.png`
+- `sentinela-simbolo-oficial-preta.png`

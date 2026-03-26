@@ -9,7 +9,7 @@ Armazena materiais de referência visual e legado da marca Sentinela.
 `sentinela-reference-[variacao]-[versao].png`
 
 ## Exemplo oficial
-- `sentinela-reference-oficial.png` (arquivo consolidado de referência)
+- `sentinela-reference-oficial-institucional.png`
 
 ## Observação
 Arquivos legados podem permanecer nesta pasta para consulta histórica, sem substituir os assets oficiais de produção.

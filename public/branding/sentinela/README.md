@@ -18,7 +18,7 @@ A nomenclatura oficial da Sentinela é híbrida por tipo de asset:
 - `wordmark` e `slogan` usam:
   - `sentinela-[tipo]-[variacao]-[cor].png`
 
-> Regra oficial da PR #48 (ajustada): composição de marca multicolorida por natureza em `logo/icone/simbolo/reference`, mantendo `wordmark/slogan` orientados por cor.
+> Diretriz oficial: composição multicolorida por natureza em `logo/icone/simbolo/reference`, mantendo `wordmark/slogan` orientados por cor.
 
 ### Regras
 - usar tudo em minúsculo
@@ -47,7 +47,7 @@ A nomenclatura oficial da Sentinela é híbrida por tipo de asset:
 - `institucional` = versão oficial multicolorida da marca
 - `branca` = versão para fundos escuros
 - `preta` = versão monocromática escura para fundos claros
-- `oficial` = versão única quando o tipo não exigir desdobramento visual adicional (ex.: alguns ícones/referências)
+- `oficial` = versão única quando o tipo não exigir desdobramento visual adicional
 
 ## Cores oficiais (`[cor]`)
 > Aplicável a: `wordmark`, `slogan`
@@ -68,8 +68,8 @@ A nomenclatura oficial da Sentinela é híbrida por tipo de asset:
 ## Exemplos oficiais
 - `sentinela-icone-app-oficial.png`
 - `sentinela-simbolo-oficial-institucional.png`
-- `sentinela-simbolo-oficial-branco.png`
-- `sentinela-simbolo-oficial-preto.png`
+- `sentinela-simbolo-oficial-branca.png`
+- `sentinela-simbolo-oficial-preta.png`
 - `sentinela-logo-oficial-institucional.png`
 - `sentinela-logo-oficial-branca.png`
 - `sentinela-logo-oficial-preta.png`
@@ -80,7 +80,7 @@ A nomenclatura oficial da Sentinela é híbrida por tipo de asset:
 - `sentinela-wordmark-oficial-preto.png`
 - `sentinela-slogan-oficial-preto.png`
 - `sentinela-slogan-oficial-branco.png`
-- `sentinela-reference-oficial.png`
+- `sentinela-reference-oficial-institucional.png`
 
 ## Importante
 - Esta pasta é somente da marca Sentinela.

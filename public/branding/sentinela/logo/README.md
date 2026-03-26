@@ -8,6 +8,10 @@ Armazena versões de **logo** da marca Sentinela.
 ## Convenção oficial
 `sentinela-logo-[variacao]-[versao].png`
 
+## Regra híbrida aplicada
+- `logo` usa **`[versao]`** (não usa `[cor]`).
+- Versões oficiais: `institucional`, `branca`, `preta`.
+
 ## Variações e versões esperadas
 - Variações: `oficial`, `com-slogan`
 - Versões: `institucional`, `branca`, `preta`

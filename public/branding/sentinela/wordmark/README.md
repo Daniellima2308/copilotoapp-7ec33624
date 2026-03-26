@@ -6,11 +6,15 @@ Armazena wordmarks oficiais da marca Sentinela.
 `wordmark = apenas SENTINELA`
 
 ## Convenção oficial
-`sentinela-wordmark-[variacao]-[versao].png`
+`sentinela-wordmark-[variacao]-[cor].png`
 
-## Variações e versões esperadas
+## Regra híbrida aplicada
+- `wordmark` usa **`[cor]`** (não usa `[versao]`).
+- Cores válidas: `azul-petroleo`, `branco`, `preto`.
+
+## Variações e cores esperadas
 - Variação principal: `oficial`
-- Versões usadas no acervo atual: `azul-petroleo`, `branco`, `preto`
+- Cores: `azul-petroleo`, `branco`, `preto`
 
 ## Exemplos
 - `sentinela-wordmark-oficial-azul-petroleo.png`

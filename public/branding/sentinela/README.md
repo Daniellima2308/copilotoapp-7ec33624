@@ -65,7 +65,7 @@ Cores válidas:
 ## Exemplos oficiais
 
 Arquivos com `[versao]`:
-- `sentinela-icone-app-oficial.png`
+- `sentinela-icone-app-institucional.png`
 - `sentinela-simbolo-oficial-institucional.png`
 - `sentinela-simbolo-oficial-branca.png`
 - `sentinela-simbolo-oficial-preta.png`
